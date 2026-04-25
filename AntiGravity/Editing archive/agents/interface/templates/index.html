@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magzimus Archive</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
+  h1 { font-size: 1.4rem; margin-bottom: 16px; color: #f90; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; background: #1a1a1a; padding: 14px; border-radius: 6px; }
+  .filters label { font-size: 0.75rem; color: #aaa; display: block; margin-bottom: 4px; }
+  .filters select, .filters input { background: #222; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 5px 8px; font-family: monospace; font-size: 0.85rem; }
+  .filters button { background: #f90; color: #111; border: none; border-radius: 4px; padding: 6px 16px; font-weight: bold; cursor: pointer; align-self: flex-end; }
+  .filters button:hover { background: #ffaa22; }
+  #results { font-size: 0.8rem; color: #888; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { background: #222; color: #f90; text-align: left; padding: 8px; border-bottom: 1px solid #333; }
+  td { padding: 7px 8px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
+  tr:hover td { background: #1a1a1a; }
+  .tag { display: inline-block; background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 1px 5px; margin: 1px; font-size: 0.75rem; }
+  .score-high { color: #4f4; }
+  .score-med { color: #ff4; }
+  .score-low { color: #f44; }
+  .export-bar { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
+  .export-bar button { background: #0af; color: #111; border: none; border-radius: 4px; padding: 8px 20px; font-weight: bold; cursor: pointer; }
+  .export-bar button:hover { background: #2cf; }
+  #export-status { font-size: 0.8rem; color: #aaa; }
+  .cb { cursor: pointer; }
+  .flag { color: #f44; font-size: 0.75rem; }
+  .fail { color: #f44; }
+  .fb-btn { background: #333; color: #aaa; border: 1px solid #555; border-radius: 3px; padding: 2px 7px; cursor: pointer; font-size: 0.72rem; }
+  .fb-btn:hover { background: #444; color: #eee; }
+  .fb-form { margin-top: 6px; display: none; }
+  .fb-form textarea { width: 100%; background: #1a1a1a; color: #eee; border: 1px solid #444; border-radius: 3px; padding: 4px; font-family: monospace; font-size: 0.8rem; resize: vertical; }
+  .fb-form button { margin-top: 4px; background: #555; color: #eee; border: none; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 0.8rem; }
+  .fb-result { font-size: 0.75rem; color: #8f8; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h1>Magzimus Archive</h1>
+
+<form class="filters" id="filter-form">
+  <div>
+    <label>Content Tag</label>
+    <select name="content_tag">
+      <option value="">-- any --</option>
+      {% for t in content_tags %}<option value="{{ t }}" {% if filters.content_tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Context Tag</label>
+    <select name="context_tag">
+      <option value="">-- any --</option>
+      {% for t in context_tags %}<option value="{{ t }}" {% if filters.context_tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Event Type</label>
+    <select name="event_type">
+      <option value="">-- any --</option>
+      {% for e in event_types %}<option value="{{ e }}" {% if filters.event_type == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Performance Level</label>
+    <select name="performance_level">
+      <option value="">-- any --</option>
+      {% for l in ['low','medium','high','peak'] %}<option value="{{ l }}" {% if filters.performance_level == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Crowd Response</label>
+    <select name="crowd_response">
+      <option value="">-- any --</option>
+      {% for l in ['silent','mixed','strong','peak'] %}<option value="{{ l }}" {% if filters.crowd_response == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Min Score</label>
+    <input type="number" name="min_score" min="0" max="1" step="0.05" value="{{ filters.min_score or '' }}" placeholder="0.0–1.0" style="width:80px">
+  </div>
+  <div>
+    <label>Date From</label>
+    <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
+  </div>
+  <div>
+    <label>Date To</label>
+    <input type="date" name="date_to" value="{{ filters.date_to or '' }}">
+  </div>
+  <button type="submit">Filter</button>
+</form>
+
+<div id="results">{{ segments|length }} result(s)</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><input type="checkbox" id="select-all"></th>
+      <th>File</th>
+      <th>TC Start → End</th>
+      <th>Content Tags</th>
+      <th>Context Tags</th>
+      <th>Score</th>
+      <th>Failure</th>
+      <th>Flag</th>
+      <th>Description / Feedback</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in segments %}
+    <tr>
+      <td><input type="checkbox" class="cb" name="seg" value="{{ s.segment_id }}"></td>
+      <td>{{ s.filename }}<br><small style="color:#666">{{ s.event_type }} p{{ s.part_index }}/{{ s.total_parts }}</small></td>
+      <td>{{ s.tc_start }}<br>→ {{ s.tc_end }}<br><small style="color:#888">peak: {{ s.tc_peak or '—' }}</small></td>
+      <td>{% for t in s.content_tags %}<span class="tag">{{ t }}</span>{% endfor %}</td>
+      <td>{% for t in s.context_tags %}<span class="tag">{{ t }}</span>{% endfor %}</td>
+      <td class="{% if s.scores_final >= 0.75 %}score-high{% elif s.scores_final >= 0.5 %}score-med{% else %}score-low{% endif %}">
+        {{ '%.2f'|format(s.scores_final or 0) }}
+      </td>
+      <td>{% if s.failure_detected %}<span class="fail">YES</span>{% else %}—{% endif %}</td>
+      <td>{% if s.critic_flag %}<span class="flag">{{ s.critic_flag }}</span>{% else %}—{% endif %}</td>
+      <td style="max-width:300px">
+        {{ s.description or '' }}
+        <button class="fb-btn" onclick="toggleFeedback(this, {{ s.segment_id }})">+ feedback</button>
+        <div class="fb-form" id="fb-{{ s.segment_id }}">
+          <textarea rows="2" placeholder="Describe what you actually see…"></textarea>
+          <button onclick="submitFeedback({{ s.segment_id }})">Submit</button>
+          <div class="fb-result" id="fbr-{{ s.segment_id }}"></div>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" style="color:#555;padding:20px">No results. Adjust filters.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="export-bar">
+  <button id="export-btn">Export Selected</button>
+  <span id="export-status"></span>
+</div>
+
+<script>
+document.getElementById('select-all').addEventListener('change', function() {
+  document.querySelectorAll('.cb').forEach(cb => cb.checked = this.checked);
+});
+
+function toggleFeedback(btn, segId) {
+  const form = document.getElementById('fb-' + segId);
+  form.style.display = form.style.display === 'block' ? 'none' : 'block';
+}
+
+function submitFeedback(segId) {
+  const form = document.getElementById('fb-' + segId);
+  const text = form.querySelector('textarea').value.trim();
+  const result = document.getElementById('fbr-' + segId);
+  if (!text) { result.textContent = 'Please enter a description.'; return; }
+  result.textContent = 'Saving...';
+  fetch('/feedback', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({segment_id: segId, user_description: text})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) { result.textContent = 'Error: ' + d.error; return; }
+    result.innerHTML = '<b>Saved.</b> Delta: ' + (d.delta || '—') + '<br><em>' + (d.prompt_suggestion || '') + '</em>';
+  })
+  .catch(e => { result.textContent = 'Error: ' + e; });
+}
+
+document.getElementById('export-btn').addEventListener('click', function() {
+  const selected = Array.from(document.querySelectorAll('.cb:checked')).map(cb => cb.value);
+  if (!selected.length) { document.getElementById('export-status').textContent = 'No segments selected.'; return; }
+  document.getElementById('export-status').textContent = 'Exporting...';
+  fetch('/export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({segment_ids: selected})
+  })
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('export-status').textContent = d.message || JSON.stringify(d);
+  })
+  .catch(e => { document.getElementById('export-status').textContent = 'Error: ' + e; });
+});
+</script>
+</body>
+</html>
