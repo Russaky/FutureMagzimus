@@ -1,0 +1,412 @@
+[
+  {
+    "id": "b1a2c3d4-0001-0000-0000-000000000001",
+    "title": "Staff Firmware — MVP",
+    "description": "קושחת Staff על ESP32-S3: קריאת MPU6050, שליחת StaffTelemetry, קבלת HubCommand וביצוע LED.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "FastLED",
+        "Wire",
+        "esp_now"
+      ],
+      "design_patterns": [
+        "Queue-based ISR"
+      ],
+      "constraints": [
+        "Telemetry 50ms",
+        "Hardware I2C 400kHz"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "5c479e0a-bf47-4f65-8b3d-71b56fc39e01",
+    "title": "Hub Firmware",
+    "description": "ESP32-S3 Gateway: מגשר ESP-NOW↔Serial.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "HardwareSerial"
+      ],
+      "design_patterns": [
+        "Gateway Pattern",
+        "State-machine frame parser"
+      ],
+      "constraints": [
+        "CRC-8 framing",
+        "Baudrate 115200"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "61d31fa7-c917-4c40-97b7-7e614bb50831",
+    "title": "Relay Firmware",
+    "description": "ESP32: מקבל RelayCommand מ-ESP-NOW, GPIO 26, auto-shutoff.",
+    "priority": 3,
+    "technical_specs": {},
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "a93b4ffb-871d-4074-b5bd-59914b434407",
+    "title": "PWM Firmware",
+    "description": "ESP32: LEDC channels 0-3 (W/R/G/B), fade לינארי.",
+    "priority": 3,
+    "technical_specs": {},
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "8da6c9f2-2b62-42bf-be7a-12e09b1f7d54",
+    "title": "Flask Control Server",
+    "description": "Python/Flask: Serial↔WebSocket, REST API, Engine.",
+    "priority": 4,
+    "technical_specs": {},
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "title": "Timeline Execution Engine",
+    "description": "Python engine: Number JSON, telemetry events, Timeline Blocks עם INTERRUPT/QUEUE/IGNORE.",
+    "priority": 4,
+    "technical_specs": {},
+    "status": "DONE",
+    "dependencies": [
+      "8da6c9f2-2b62-42bf-be7a-12e09b1f7d54"
+    ]
+  },
+  {
+    "id": "d7bcfd8e-128c-4b68-b715-e4fb9d2a0002",
+    "title": "ESP-NOW Dynamic WiFi Provisioning",
+    "description": "פקודת ESP-NOW להדלקה/כיבוי WiFi ביחידות הקצה לצורך OTA. WiFi כבוי ברירת מחדל, נדלק לפי פקודה מהHub.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "WiFi",
+        "ArduinoOTA"
+      ],
+      "design_patterns": [
+        "State Pattern"
+      ],
+      "constraints": [
+        "Non-blocking",
+        "Auto-timeout 10min",
+        "MSG_WIFI_CTRL=0x30"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001",
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "d7bcfd8e-128c-4b68-b715-e4fb9d2a0003",
+    "title": "Hot-Swapping Replacement Protocol",
+    "description": "החלפת מכשיר תקול במכשיר גיבוי בזמן אמת ללא אתחול שרת.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [
+        "Registry / Gateway Pattern"
+      ],
+      "constraints": [
+        "Dynamic group membership mapping"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "8da6c9f2-2b62-42bf-be7a-12e09b1f7d54"
+    ]
+  },
+  {
+    "id": "d7bcfd8e-128c-4b68-b715-e4fb9d2a0004",
+    "title": "Dual-Head Staff Architecture",
+    "description": "מימוש מנגנון משדר-יחיד/מקלט-כפול עבור שני ראשי הסטאף (Tx/Rx ו-Rx-Only) למניעת כפל שידורים ורעשי חיישנים.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "FastLED"
+      ],
+      "design_patterns": [
+        "State Management",
+        "Mirroring/Inversion"
+      ],
+      "constraints": [
+        "Dynamic role selection (NVS or physical pin)",
+        "Mirrored LED index mapping"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000001",
+    "title": "בדיקת OTA מקבילי — Flasher UI",
+    "description": "אימות שהפלאשר מפלאש מספר מכשירים בו-זמנית: WiFi ON → Scan (mDNS) → סימון הכל → Flash. לוודא שכל המכשירים מגיבים אחרי ריבוט וחוזרים לESP-NOW.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [],
+      "constraints": [
+        "2+ מכשירים במקביל",
+        "אימות חזרה ל-ESP-NOW אחרי OTA"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "d7bcfd8e-128c-4b68-b715-e4fb9d2a0002"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000002",
+    "title": "בדיקת Hub Heartbeat — fallback ל-IMU",
+    "description": "לאמת שאחרי 3 שניות ללא ACK (HUB_TIMEOUT_MS) ה-Staff חוזר לאפקט IMU. לבדוק: (1) שלח LED_SOLID, (2) נתק Hub, (3) וודא שהסטאף חזר ל-tilt אחרי 3s. לבדוק גם חזרה לפקודות כש-Hub מתחבר מחדש.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [],
+      "constraints": [
+        "HUB_TIMEOUT_MS=3000",
+        "ACK-based detection via esp_now_send_cb"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000003",
+    "title": "בדיקת NVS Role Persistence",
+    "description": "לאמת ש-tx_enabled נשמר ב-NVS וניתן לשנות דרך MSG_ROLE_CTRL: (1) שלח ROLE_CTRL txEnabled=false, (2) ריבוט, (3) וודא שה-Staff לא שולח telemetry. ולהפך.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [
+        "Preferences"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "NVS namespace: staff",
+        "key: tx_en"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "d7bcfd8e-128c-4b68-b715-e4fb9d2a0004"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000004",
+    "title": "בדיקת CMD_LED_SPARKLE על חומרה",
+    "description": "אפקט הספארקל נכתב אך לא נבדק על חומרה. לשלוח CMD_LED_SPARKLE=2 עם density שונה (64, 128, 200) ולאמת אפקט ויזואלי על שני סוגי הסטאפים (S3 ו-C3).",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [
+        "FastLED"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "CMD_LED_SPARKLE=2",
+        "brightness=density (0-255)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000005",
+    "title": "בדיקת Hot-Swap Slots end-to-end",
+    "description": "לבדוק את ה-API של slot/hotswap על חומרה: (1) הגדר slot לסטאף פעיל, (2) Number עם targetSlot, (3) החלף ל-deviceId של סטאף אחר, (4) אמת שה-Timeline עובר למכשיר החדש ללא הפרעה.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Registry Pattern"
+      ],
+      "constraints": [
+        "POST /api/slots",
+        "POST /api/hotswap",
+        "targetSlot בNumber JSON"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "d7bcfd8e-128c-4b68-b715-e4fb9d2a0003",
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    ]
+  },
+  {
+    "id": "test-0001-0000-0000-000000000006",
+    "title": "עדכון test_protocol.py לאפקטים ול-OTA",
+    "description": "הרחבת סקריפט הבדיקה הקיים (tools/test_protocol.py) לכלול: בדיקות CMD_LED_SPARKLE/FLAME/RAINBOW על חומרה, בדיקת OTA flow, ובדיקת Hub heartbeat timeout.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [],
+      "constraints": [
+        "להוסיף ל-tools/test_protocol.py",
+        "סקשן 7: אפקטים",
+        "סקשן 8: OTA",
+        "סקשן 9: heartbeat"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "test-0001-0000-0000-000000000002",
+      "test-0001-0000-0000-000000000003",
+      "test-0001-0000-0000-000000000004"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-111122223333",
+    "title": "Staff Firmware — RF Optimization",
+    "description": "אילוץ קצב ה-PHY ל-1M_L והגדרת עוצמת שידור מקסימלית של 20dBm ב-EspNow.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_wifi"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "WIFI_PHY_RATE_1M_L",
+        "esp_wifi_set_max_tx_power(80)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-222233334444",
+    "title": "Staff Firmware — Pairing & Provisioning Protocol",
+    "description": "מימוש מנגנון צימוד היברידי: שמירת STAFF_ID ב-NVS ולחיצת יד עצמאית (Boot Sequence Handshake) ב-Unicast.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "Preferences"
+      ],
+      "design_patterns": [
+        "State Pattern",
+        "Handshake Protocol"
+      ],
+      "constraints": [
+        "Unicast pairing lock"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001",
+      "d7bcfd8e-128c-4b68-b715-e4fb9d2a0004"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-333344445555",
+    "title": "Staff Firmware — Dual-Head Synced State Machine",
+    "description": "מכונת מצבים לסלייב: האזנה למאסטר, סינכרון אפקטים ומעבר למצב גיבוי (MPU6500 עצמאי) תוך 500ms.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "Wire"
+      ],
+      "design_patterns": [
+        "Watchdog Timer",
+        "Observer Pattern"
+      ],
+      "constraints": [
+        "Packet timeout < 500ms",
+        "Seamless recovery"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "a0f1b2c3-d4e5-4f67-890a-222233334444"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-444455556666",
+    "title": "Staff Firmware — Manual Gyroscope Calibration",
+    "description": "מימוש פקודת כיול יזומה: דגימת 200 קריאות על פני 500ms, שמירת offsets ב-RAM, מניעת כיול בזמן תנועה.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [
+        "Wire"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "200 samples over 500ms",
+        "Static detection"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-555566667777",
+    "title": "Staff Firmware — Battery & RSSI Heartbeat",
+    "description": "גנוז/במגירה לעתיד (בשל חוסר בחומרה למדידת סוללה). שליחת RSSI בלבד או ביטול.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "Interval 1000-2000ms",
+        "Non-blocking"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "a0f1b2c3-d4e5-4f67-890a-666677778888",
+    "title": "Staff Firmware — Virtual Pixels & Serpentine Mapping",
+    "description": "מימוש פונקציית XY() מעודכנת עם Serpentine Layout של 100 לדים ופיקסלים וירטואליים לגישור על הפער של ה-100 ס\"מ.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "FastLED"
+      ],
+      "design_patterns": [
+        "Pixel Mapping"
+      ],
+      "constraints": [
+        "Virtual gap representation",
+        "Serpentine mapping"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  }
+]

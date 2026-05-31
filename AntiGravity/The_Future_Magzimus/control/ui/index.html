@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TheFutureMAGZIMUS — Control</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
+    h1 { color: #fff; font-size: 1.2rem; margin-bottom: 24px; letter-spacing: 2px; }
+    h2 { font-size: 0.85rem; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; }
+    .panel { background: #141414; border: 1px solid #222; border-radius: 6px; padding: 16px; }
+    .panel.full { grid-column: 1 / -1; }
+
+    /* Telemetry */
+    .tel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .tel-cell { background: #0d0d0d; border-radius: 4px; padding: 10px; text-align: center; }
+    .tel-cell label { display: block; font-size: 0.65rem; color: #555; margin-bottom: 4px; }
+    .tel-cell span { font-size: 1.1rem; color: #4af; }
+    #status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                  background: #333; margin-left: 8px; vertical-align: middle; }
+    #status-dot.live { background: #4f4; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* Controls */
+    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    label { font-size: 0.75rem; color: #888; min-width: 80px; }
+    input[type=range] { flex: 1; accent-color: #4af; }
+    input[type=color] { width: 40px; height: 28px; border: none; background: none; cursor: pointer; }
+    .val { font-size: 0.75rem; color: #4af; min-width: 32px; text-align: right; }
+
+    button {
+      background: #1a1a2e; border: 1px solid #333; color: #e0e0e0;
+      padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;
+      font-size: 0.8rem; transition: background .15s;
+    }
+    button:hover { background: #252545; }
+    button.danger { border-color: #c33; }
+    button.danger:hover { background: #2a1010; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+    select { background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+             padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>THE FUTURE MAGZIMUS <span id="status-dot"></span></h1>
+
+  <div class="grid">
+    <!-- Telemetry -->
+    <div class="panel full">
+      <h2>Staff Telemetry</h2>
+      <div class="tel-grid">
+        <div class="tel-cell"><label>Device ID</label><span id="t-id">—</span></div>
+        <div class="tel-cell"><label>Speed (rad/s)</label><span id="t-spd">—</span></div>
+        <div class="tel-cell"><label>Angle (°)</label><span id="t-ang">—</span></div>
+        <div class="tel-cell"><label>Motion</label><span id="t-mot">—</span></div>
+        <div class="tel-cell"><label>accX</label><span id="t-ax">—</span></div>
+        <div class="tel-cell"><label>accY</label><span id="t-ay">—</span></div>
+        <div class="tel-cell"><label>accZ</label><span id="t-az">—</span></div>
+        <div class="tel-cell"><label>gyroZ</label><span id="t-gz">—</span></div>
+      </div>
+    </div>
+
+    <!-- Staff LEDs -->
+    <div class="panel">
+      <h2>Staff LEDs</h2>
+      <div class="row">
+        <label>Color</label>
+        <input type="color" id="led-color" value="#ff0000">
+      </div>
+      <div class="row">
+        <label>Brightness</label>
+        <input type="range" id="led-bright" min="0" max="255" value="150">
+        <span class="val" id="led-bright-val">150</span>
+      </div>
+      <div class="row">
+        <label>Target</label>
+        <select id="led-target">
+          <option value="65535">All Staffs</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button onclick="sendStaff(1)">Set Color</button>
+        <button class="danger" onclick="sendStaff(0)">Off</button>
+      </div>
+    </div>
+
+    <!-- Relay -->
+    <div class="panel">
+      <h2>Relay (Smoke / Electromagnet)</h2>
+      <div class="row">
+        <label>Duration</label>
+        <input type="range" id="relay-dur" min="0" max="5000" step="100" value="1500">
+        <span class="val" id="relay-dur-val">1500ms</span>
+      </div>
+      <div class="row">
+        <label>Target</label>
+        <select id="relay-target">
+          <option value="255">All Relays</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button onclick="sendRelay(1)">ON</button>
+        <button class="danger" onclick="sendRelay(0)">OFF</button>
+      </div>
+    </div>
+
+    <!-- WRGB -->
+    <div class="panel full">
+      <h2>WRGB Lights</h2>
+      <div class="row"><label>White</label>
+        <input type="range" id="pwm-w" min="0" max="255" value="0">
+        <span class="val" id="pwm-w-val">0</span>
+      </div>
+      <div class="row"><label>Red</label>
+        <input type="range" id="pwm-r" min="0" max="255" value="0">
+        <span class="val" id="pwm-r-val">0</span>
+      </div>
+      <div class="row"><label>Green</label>
+        <input type="range" id="pwm-g" min="0" max="255" value="0">
+        <span class="val" id="pwm-g-val">0</span>
+      </div>
+      <div class="row"><label>Blue</label>
+        <input type="range" id="pwm-b" min="0" max="255" value="0">
+        <span class="val" id="pwm-b-val">0</span>
+      </div>
+      <div class="row"><label>Fade (ms)</label>
+        <input type="range" id="pwm-fade" min="0" max="3000" step="100" value="500">
+        <span class="val" id="pwm-fade-val">500ms</span>
+      </div>
+      <div class="btn-row">
+        <button onclick="sendPWM()">Set</button>
+        <button class="danger" onclick="clearPWM()">Off</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    const MOTION = ['IDLE', 'SWING', 'SPIN'];
+    const dot = document.getElementById('status-dot');
+
+    socket.on('connect',    () => dot.classList.add('live'));
+    socket.on('disconnect', () => dot.classList.remove('live'));
+
+    socket.on('telemetry', d => {
+      document.getElementById('t-id').textContent  = d.deviceId.toString(16).toUpperCase().padStart(4,'0');
+      document.getElementById('t-spd').textContent = d.speed.toFixed(2);
+      document.getElementById('t-ang').textContent = d.angle.toFixed(1);
+      document.getElementById('t-mot').textContent = MOTION[d.motionType] ?? d.motionType;
+      document.getElementById('t-ax').textContent  = d.accX;
+      document.getElementById('t-ay').textContent  = d.accY;
+      document.getElementById('t-az').textContent  = d.accZ;
+      document.getElementById('t-gz').textContent  = d.gyroZ;
+    });
+
+    // Live slider labels
+    const bind = (id, suffix = '') =>
+      document.getElementById(id).addEventListener('input', e =>
+        document.getElementById(id + '-val').textContent = e.target.value + suffix);
+
+    bind('led-bright'); bind('relay-dur', 'ms');
+    bind('pwm-w'); bind('pwm-r'); bind('pwm-g'); bind('pwm-b'); bind('pwm-fade', 'ms');
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      return {r, g, b};
+    }
+
+    function post(path, body) {
+      return fetch(path, { method:'POST', headers:{'Content-Type':'application/json'},
+                           body: JSON.stringify(body) });
+    }
+
+    function sendStaff(cmdType) {
+      const {r,g,b} = hexToRgb(document.getElementById('led-color').value);
+      post('/api/command/staff', {
+        targetId: +document.getElementById('led-target').value,
+        cmdType, r, g, b,
+        brightness: +document.getElementById('led-bright').value
+      });
+    }
+
+    function sendRelay(state) {
+      post('/api/command/relay', {
+        targetId:   +document.getElementById('relay-target').value,
+        state,
+        durationMs: state ? +document.getElementById('relay-dur').value : 0
+      });
+    }
+
+    function sendPWM() {
+      post('/api/command/pwm', {
+        targetId: 255,
+        w: +document.getElementById('pwm-w').value,
+        r: +document.getElementById('pwm-r').value,
+        g: +document.getElementById('pwm-g').value,
+        b: +document.getElementById('pwm-b').value,
+        fadeMs: +document.getElementById('pwm-fade').value
+      });
+    }
+
+    function clearPWM() {
+      post('/api/command/pwm', { targetId:255, w:0,r:0,g:0,b:0, fadeMs:500 });
+    }
+  </script>
+</body>
+</html>

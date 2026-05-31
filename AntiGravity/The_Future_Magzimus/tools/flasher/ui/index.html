@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAGZIMUS Flasher</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0c0c0f;
+      --panel:   #111116;
+      --border:  #1e1e28;
+      --accent:  #5b8fff;
+      --green:   #3ecf6e;
+      --red:     #e05252;
+      --yellow:  #e0b352;
+      --text:    #d0d0e0;
+      --dim:     #555566;
+      --card-h:  130px;
+    }
+
+    body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg);
+           color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 0.9rem; letter-spacing: 3px; color: #fff; }
+    #global-status {
+      font-size: 0.75rem; padding: 4px 12px; border-radius: 20px;
+      background: var(--border); color: var(--dim); transition: all .3s;
+    }
+    #global-status.running { background: #1a2040; color: var(--accent); }
+    #global-status.success { background: #0d2018; color: var(--green); }
+    #global-status.error   { background: #200d0d; color: var(--red); }
+
+    /* ── Layout ── */
+    main { flex: 1; display: grid; grid-template-rows: auto 1fr; gap: 0; overflow: hidden; }
+    .top { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Firmware cards ── */
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .card {
+      background: var(--panel); border: 2px solid var(--border);
+      border-radius: 8px; padding: 14px; cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative; user-select: none;
+    }
+    .card:hover   { border-color: #333345; }
+    .card.selected { border-color: var(--accent); background: #0e1220; }
+    .card.success  { border-color: var(--green); }
+    .card.error    { border-color: var(--red); }
+    .card.running  { border-color: var(--accent);
+                     animation: borderPulse 1s ease-in-out infinite; }
+    @keyframes borderPulse {
+      0%,100% { border-color: var(--accent); }
+      50%      { border-color: #2a3a6a; }
+    }
+    .card-name  { font-size: 1rem; color: #fff; margin-bottom: 4px; }
+    .card-board { font-size: 0.65rem; color: var(--dim); margin-bottom: 8px;
+                  text-transform: uppercase; letter-spacing: 1px; }
+    .card-desc  { font-size: 0.72rem; color: #8888aa; line-height: 1.4; }
+    .card-badge {
+      position: absolute; top: 10px; left: 10px;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--border);
+    }
+    .card.success .card-badge { background: var(--green); }
+    .card.error   .card-badge { background: var(--red); }
+    .card.running .card-badge { background: var(--accent);
+                                animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+    /* ── WiFi credentials ── */
+    .wifi-panel {
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--panel); overflow: hidden;
+    }
+    .wifi-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; cursor: pointer; user-select: none;
+    }
+    .wifi-header:hover { background: #111118; }
+    .wifi-header span { font-size: 0.72rem; color: var(--dim);
+                        letter-spacing: 1px; text-transform: uppercase; }
+    .wifi-header .wifi-ssid { font-size: 0.78rem; color: var(--text); }
+    .wifi-body {
+      display: none; padding: 12px 14px; border-top: 1px solid var(--border);
+      display: none; gap: 10px; align-items: flex-end; flex-wrap: wrap;
+    }
+    .wifi-body.open { display: flex; }
+    .wifi-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+    .wifi-field label { font-size: 0.65rem; color: var(--dim); letter-spacing: 1px; }
+    .wifi-field input {
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 10px; border-radius: 6px;
+      font-family: inherit; font-size: 0.78rem;
+    }
+    .wifi-field input:focus { outline: none; border-color: var(--accent); }
+    #btn-save-wifi {
+      background: #1a2a4a; color: var(--accent);
+      border: 1px solid #2a3a6a; padding: 7px 18px;
+    }
+    #btn-save-wifi:hover { background: #1f3460; }
+    #btn-save-wifi.saved { background: #0d2018; color: var(--green);
+                           border-color: #1a4a2a; }
+
+    /* ── Controls row ── */
+    .controls {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .port-group { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px; }
+    label.lbl { font-size: 0.72rem; color: var(--dim); white-space: nowrap; }
+    select {
+      background: var(--panel); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 10px; border-radius: 6px;
+      font-family: inherit; font-size: 0.78rem; flex: 1; cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    button {
+      border: none; border-radius: 6px; padding: 8px 20px;
+      font-family: inherit; font-size: 0.78rem; cursor: pointer;
+      transition: opacity .15s, transform .1s; white-space: nowrap;
+    }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+
+    #btn-build  { background: #1a2a4a; color: var(--accent); border: 1px solid #2a3a6a; }
+    #btn-upload { background: #1a3a26; color: var(--green);  border: 1px solid #1a4a2a; }
+    #btn-kill   { background: #2a1a1a; color: var(--red);    border: 1px solid #4a2020; }
+    #btn-refresh { background: var(--panel); color: var(--dim); border: 1px solid var(--border); }
+    #btn-build:hover  { background: #1f3460; }
+    #btn-upload:hover { background: #1a4830; }
+    #btn-kill:hover   { background: #3a2020; }
+    #btn-refresh:hover { color: var(--text); }
+
+    .card.incompatible { opacity: 0.25; pointer-events: none; }
+
+    /* ── Discovery ── */
+    .discovery-wrap {
+      border-top: 1px solid var(--border); background: #0a0a0d;
+      padding: 10px 24px 12px;
+    }
+    .discovery-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .discovery-header > span { font-size: 0.7rem; color: var(--dim);
+                               letter-spacing: 1px; text-transform: uppercase; }
+    .device-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .device-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      transition: border-color .15s;
+    }
+    .device-card:hover  { border-color: #333345; }
+    .device-card.checked { border-color: #88cc88; background: #0d1a0d; }
+    .device-card input[type=checkbox] { accent-color: #88cc88; cursor: pointer; }
+    .device-info { font-size: 0.72rem; }
+    .device-name { color: #fff; font-size: 0.8rem; margin-bottom: 2px; }
+    .device-meta { color: var(--dim); }
+
+    #btn-scan { background: #0d1a1a; color: #44aaaa;
+                border: 1px solid #1a3333; }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      padding: 0 24px;
+      height: 0;
+      overflow: hidden;
+      transition: height .2s;
+    }
+    .progress-wrap.visible { height: 40px; }
+    .progress-track {
+      height: 6px; border-radius: 3px; background: var(--border);
+      margin-top: 4px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; width: 0%; border-radius: 3px;
+      background: var(--accent);
+      transition: width .25s ease, background .3s;
+    }
+    .progress-fill.indeterminate {
+      width: 30%;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0%   { margin-left: -30%; }
+      100% { margin-left: 130%; }
+    }
+    .progress-fill.done  { background: var(--green); width: 100% !important; animation: none; }
+    .progress-fill.error { background: var(--red);   animation: none; }
+    .progress-label {
+      font-size: 0.65rem; color: var(--dim); margin-bottom: 4px;
+      display: flex; justify-content: space-between;
+    }
+
+    /* ── Terminal ── */
+    .terminal-wrap {
+      border-top: 1px solid var(--border); display: flex; flex-direction: column;
+      overflow: hidden; background: #080808; min-height: 0;
+    }
+    .term-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+    }
+    .term-header span { font-size: 0.7rem; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+    #btn-clear { background: none; border: none; color: var(--dim);
+                 font-size: 0.7rem; cursor: pointer; padding: 2px 8px; border-radius: 4px; }
+    #btn-clear:hover { color: var(--text); background: var(--border); }
+
+    #terminal {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      font-size: 0.73rem; line-height: 1.6; color: #aaaacc;
+      display: flex; flex-direction: column-reverse;
+    }
+    #terminal::-webkit-scrollbar { width: 6px; }
+    #terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .log-cmd   { color: #6688cc; }
+    .log-error,
+    .log-out.is-err  { color: #e05252; }
+    .log-warn,
+    .log-out.is-warn { color: #c9922a; }
+    .log-out.is-ok   { color: #3ecf6e; }
+    .log-out.is-info { color: #6688aa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ MAGZIMUS FLASHER</h1>
+  <div id="global-status">IDLE</div>
+</header>
+
+<main>
+  <div class="top">
+
+    <!-- Firmware cards -->
+    <div class="cards" id="cards"></div>
+
+    <!-- WiFi Credentials -->
+    <div class="wifi-panel">
+      <div class="wifi-header" onclick="toggleWifi()">
+        <span>WiFi / OTA</span>
+        <span class="wifi-ssid" id="wifi-ssid-label">—</span>
+      </div>
+      <div class="wifi-body" id="wifi-body">
+        <div class="wifi-field">
+          <label>SSID</label>
+          <input id="wifi-ssid" type="text" placeholder="Network name" autocomplete="off">
+        </div>
+        <div class="wifi-field">
+          <label>PASSWORD</label>
+          <input id="wifi-password" type="password" placeholder="••••••••" autocomplete="off">
+        </div>
+        <div class="wifi-field" style="max-width:160px">
+          <label>OTA PASSWORD</label>
+          <input id="ota-password" type="text" placeholder="magzimus" autocomplete="off">
+        </div>
+        <button id="btn-save-wifi" onclick="saveCredentials()">Save</button>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="port-group">
+        <label class="lbl">PORT</label>
+        <select id="port-select"><option value="">— scan —</option></select>
+        <button id="btn-refresh" onclick="loadPorts()" title="Refresh ports">↺</button>
+      </div>
+      <div class="port-group">
+        <label class="lbl">CHIP</label>
+        <select id="chip-select" onchange="onChipFilter()">
+          <option value="">— all —</option>
+          <option value="ESP32-S3">ESP32-S3</option>
+          <option value="ESP32-C3">ESP32-C3</option>
+          <option value="ESP32">ESP32</option>
+        </select>
+      </div>
+      <div class="port-group" id="ota-group" style="display:none">
+        <label class="lbl">OTA IP</label>
+        <input id="ota-ip" type="text" placeholder="192.168.x.x or hostname.local" oninput="updateButtons()"
+               style="flex:1;background:var(--panel);border:1px solid var(--border);
+                      color:var(--text);padding:7px 10px;border-radius:6px;
+                      font-family:inherit;font-size:0.78rem;">
+        <button id="btn-ota" onclick="run('ota')" disabled
+                style="background:#1a2a1a;color:#88cc88;border:1px solid #2a4a2a;
+                       border-radius:6px;padding:8px 16px;font-family:inherit;
+                       font-size:0.78rem;cursor:pointer;white-space:nowrap;">
+          Flash OTA
+        </button>
+      </div>
+      <button id="btn-build"  onclick="run('build')"  disabled>Build</button>
+      <button id="btn-upload" onclick="run('upload')" disabled>Build + Flash</button>
+      <button id="btn-wifi-on"  onclick="wifiCtrl(true)"
+              style="background:#1a1a2a;color:#aaaaff;border:1px solid #333366;
+                     border-radius:6px;padding:8px 14px;font-family:inherit;
+                     font-size:0.78rem;cursor:pointer;">WiFi ON</button>
+      <button id="btn-wifi-off" onclick="wifiCtrl(false)"
+              style="background:#1a1a1a;color:#888899;border:1px solid #333344;
+                     border-radius:6px;padding:8px 14px;font-family:inherit;
+                     font-size:0.78rem;cursor:pointer;">WiFi OFF</button>
+      <button id="btn-scan"   onclick="scanNetwork()" disabled>Scan Network</button>
+      <button id="btn-kill"   onclick="kill()"        disabled>Stop</button>
+    </div>
+
+  </div>
+
+  <!-- Device Discovery -->
+  <div class="discovery-wrap" id="discovery-wrap" style="display:none">
+    <div class="discovery-header">
+      <span>NETWORK DEVICES</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="discovery-status" style="font-size:0.68rem;color:var(--dim)"></span>
+        <button id="btn-flash-selected" onclick="flashSelected()" disabled
+                style="background:#1a2a1a;color:#88cc88;border:1px solid #2a4a2a;
+                       border-radius:4px;padding:4px 12px;font-family:inherit;
+                       font-size:0.72rem;cursor:pointer;">Flash selected</button>
+        <button onclick="closeScan()"
+                style="background:none;border:none;color:var(--dim);cursor:pointer;
+                       font-size:0.8rem;padding:2px 6px;">✕</button>
+      </div>
+    </div>
+    <div id="device-list" class="device-list"></div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-label">
+      <span id="progress-phase"></span>
+      <span id="progress-pct"></span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div class="terminal-wrap">
+    <div class="term-header">
+      <span>Output</span>
+      <button id="btn-clear" onclick="clearTerm()">clear</button>
+    </div>
+    <div id="terminal"></div>
+  </div>
+</main>
+
+<script>
+  const socket = io();
+
+  let selected   = null;
+  let firmwares  = {};
+  let isRunning  = false;
+
+  // ── Progress ──────────────────────────────────────────────────────────────
+  const progWrap  = document.getElementById('progress-wrap');
+  const progFill  = document.getElementById('progress-fill');
+  const progPhase = document.getElementById('progress-phase');
+  const progPct   = document.getElementById('progress-pct');
+
+  let _currentAction = '';
+  let _compileCount  = 0;
+
+  function progressShow() {
+    progWrap.classList.add('visible');
+  }
+  function progressHide() {
+    progWrap.classList.remove('visible');
+  }
+  function progressSet(pct, phase, state) {
+    progFill.classList.remove('indeterminate', 'done', 'error');
+    if (state) progFill.classList.add(state);
+    if (state !== 'indeterminate') progFill.style.width = pct + '%';
+    progPhase.textContent = phase || '';
+    progPct.textContent   = (state === 'indeterminate' || state === 'done' || state === 'error')
+                              ? '' : pct + '%';
+  }
+  function progressReset(action) {
+    _currentAction = action;
+    _compileCount  = 0;
+    progressShow();
+    if (action === 'build') {
+      progressSet(0, 'Compiling…', 'indeterminate');
+    } else {
+      progressSet(0, 'Uploading…', '');
+    }
+  }
+  function progressDone()  { progressSet(100, 'Done',   'done');  }
+  function progressError() { progressSet(0,   'Failed', 'error'); }
+
+  // Parse a log line and update progress.
+  function progressParseLine(text) {
+    if (_currentAction === 'upload') {
+      // esptool: "Writing at 0x00010000... (3 %)"
+      const m = text.match(/\(\s*(\d+)\s*%\s*\)/);
+      if (m) {
+        const pct = parseInt(m[1], 10);
+        progressSet(pct, 'Flashing…', '');
+      }
+      if (/Hash of data verified/i.test(text)) {
+        progressSet(99, 'Verifying…', '');
+      }
+    } else {
+      // Build heuristics
+      if (/^Compiling /i.test(text)) {
+        _compileCount++;
+        // Advance 2% per file, capped at 75%
+        const pct = Math.min(2 + _compileCount * 2, 75);
+        progressSet(pct, 'Compiling…', '');
+      } else if (/^Linking /i.test(text)) {
+        progressSet(85, 'Linking…', '');
+      } else if (/Checking size/i.test(text)) {
+        progressSet(95, 'Checking…', '');
+      }
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── WiFi Credentials ─────────────────────────────────────────────────────
+  function toggleWifi() {
+    document.getElementById('wifi-body').classList.toggle('open');
+  }
+
+  async function loadCredentials() {
+    const res = await fetch('/api/credentials').then(r => r.json());
+    const ssid = res.ssid || '';
+    document.getElementById('wifi-ssid-label').textContent = ssid || 'not set';
+    document.getElementById('wifi-ssid').value = ssid;
+  }
+
+  async function saveCredentials() {
+    const ssid     = document.getElementById('wifi-ssid').value.trim();
+    const password = document.getElementById('wifi-password').value;
+    const otaPass  = document.getElementById('ota-password').value.trim();
+    if (!ssid) { log('SSID required', 'warn'); return; }
+    const res = await fetch('/api/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ssid, password, otaPassword: otaPass }),
+    }).then(r => r.json());
+    if (res.ok) {
+      document.getElementById('wifi-ssid-label').textContent = ssid;
+      const btn = document.getElementById('btn-save-wifi');
+      btn.textContent = '✓ Saved';
+      btn.classList.add('saved');
+      setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+      document.getElementById('wifi-body').classList.remove('open');
+      log(`WiFi credentials saved: ${ssid}`, 'out');
+    } else {
+      log(`Failed: ${res.error}`, 'error');
+    }
+  }
+
+  async function init() {
+    const [fwRes, portRes] = await Promise.all([
+      fetch('/api/firmwares').then(r => r.json()),
+      fetch('/api/ports').then(r => r.json()),
+    ]);
+    firmwares = fwRes;
+    renderCards(fwRes);
+    renderPorts(portRes);
+    loadCredentials();
+  }
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  function renderCards(fws) {
+    const container = document.getElementById('cards');
+    container.innerHTML = '';
+    for (const [name, fw] of Object.entries(fws)) {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.dataset.fw = name;
+      el.innerHTML = `
+        <div class="card-badge"></div>
+        <div class="card-name">${name}</div>
+        <div class="card-board">${fw.board}</div>
+        <div class="card-desc">${fw.desc}</div>
+      `;
+      el.addEventListener('click', () => selectFW(name));
+      container.appendChild(el);
+    }
+  }
+
+  function selectFW(name) {
+    if (isRunning) return;
+    selected = name;
+    document.querySelectorAll('.card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.fw === name);
+    });
+    updateButtons();
+  }
+
+  function cardState(fw, state) {
+    const card = document.querySelector(`.card[data-fw="${fw}"]`);
+    if (!card) return;
+    card.classList.remove('running', 'success', 'error');
+    if (state) card.classList.add(state);
+  }
+
+  // ── Ports ─────────────────────────────────────────────────────────────────
+  function renderPorts(ports) {
+    const sel = document.getElementById('port-select');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— select port —</option>';
+    ports.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.device;
+      opt.textContent = `${p.device}  (${p.description})`;
+      sel.appendChild(opt);
+    });
+    if (prev) sel.value = prev;
+    updateButtons();
+  }
+
+  async function loadPorts() {
+    const ports = await fetch('/api/ports').then(r => r.json());
+    renderPorts(ports);
+  }
+
+  // ── Buttons ───────────────────────────────────────────────────────────────
+  function updateButtons() {
+    const hasFW    = !!selected;
+    const hasPort  = !!document.getElementById('port-select').value;
+    const isOta    = hasFW && !!firmwares[selected]?.ota;
+    const hasOtaIp = !!document.getElementById('ota-ip').value.trim();
+
+    document.getElementById('btn-build').disabled  = !hasFW || isRunning;
+    document.getElementById('btn-upload').disabled = !hasFW || !hasPort || isRunning;
+    document.getElementById('btn-scan').disabled   = !hasFW || isRunning;
+    document.getElementById('btn-kill').disabled   = !isRunning;
+
+    const otaGroup = document.getElementById('ota-group');
+    otaGroup.style.display = isOta ? 'flex' : 'none';
+    document.getElementById('btn-ota').disabled = !hasFW || !hasOtaIp || isRunning;
+  }
+
+  function setRunning(running) {
+    isRunning = running;
+    updateButtons();
+    const gs = document.getElementById('global-status');
+    gs.className = running ? 'running' : '';
+    gs.textContent = running ? 'RUNNING…' : 'IDLE';
+  }
+
+  // ── Network Discovery ─────────────────────────────────────────────────────
+  let discoveredDevices = [];
+
+  async function scanNetwork() {
+    if (!selected) return;
+    const wrap   = document.getElementById('discovery-wrap');
+    const list   = document.getElementById('device-list');
+    const status = document.getElementById('discovery-status');
+    wrap.style.display = 'block';
+    list.innerHTML = '';
+    status.textContent = 'mDNS scan…';
+    document.getElementById('btn-flash-selected').disabled = true;
+
+    const res = await fetch('/api/mdns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timeout: 4.0 }),
+    }).then(r => r.json());
+
+    discoveredDevices = res.devices || [];
+    status.textContent = `${discoveredDevices.length} device${discoveredDevices.length !== 1 ? 's' : ''} found`;
+
+    if (!discoveredDevices.length) {
+      list.innerHTML = '<span style="font-size:0.72rem;color:var(--dim)">No devices found. Send WiFi ON first.</span>';
+      return;
+    }
+
+    discoveredDevices.forEach((d, i) => {
+      const card = document.createElement('label');
+      card.className = 'device-card';
+      card.innerHTML = `
+        <input type="checkbox" data-idx="${i}" onchange="onDeviceCheck()">
+        <div class="device-info">
+          <div class="device-name">${d.hostname}</div>
+          <div class="device-meta">${d.ip || 'resolving…'}</div>
+        </div>`;
+      card.querySelector('input').addEventListener('change', () => {
+        card.classList.toggle('checked', card.querySelector('input').checked);
+      });
+      list.appendChild(card);
+    });
+  }
+
+  function onDeviceCheck() {
+    const any = [...document.querySelectorAll('#device-list input[type=checkbox]')]
+                  .some(c => c.checked);
+    document.getElementById('btn-flash-selected').disabled = !any || !selected;
+  }
+
+  function closeScan() {
+    document.getElementById('discovery-wrap').style.display = 'none';
+  }
+
+  async function flashSelected() {
+    if (!selected) return;
+    const checked = [...document.querySelectorAll('#device-list input[type=checkbox]')]
+                      .filter(c => c.checked)
+                      .map(c => discoveredDevices[+c.dataset.idx]);
+    if (!checked.length) return;
+
+    log(`▶ OTA parallel → ${checked.map(d => d.hostname).join(', ')}`, 'cmd');
+    document.getElementById('btn-flash-selected').disabled = true;
+
+    // Fire all OTA jobs simultaneously — backend handles each in its own thread
+    const pending = new Set(checked.map(d => d.ip || d.hostname));
+    const done    = new Promise(resolve => {
+      const handler = ({ state, target }) => {
+        if (state !== 'running' && target && pending.has(target)) {
+          pending.delete(target);
+          if (pending.size === 0) { socket.off('status', handler); resolve(); }
+        }
+      };
+      socket.on('status', handler);
+      setTimeout(() => { socket.off('status', handler); resolve(); }, 120000);
+    });
+
+    checked.forEach(dev => {
+      socket.emit('run', { firmware: selected, action: 'ota', otaIp: dev.ip || dev.hostname });
+    });
+
+    await done;
+    document.getElementById('btn-flash-selected').disabled = false;
+    log(`✓ OTA complete (${checked.length} device${checked.length > 1 ? 's' : ''})`, 'out');
+  }
+
+  // ── WiFi control ──────────────────────────────────────────────────────────
+  async function wifiCtrl(enable) {
+    const label = enable ? 'ON' : 'OFF';
+    log(`WiFi ${label} → all devices…`, 'cmd');
+    const res = await fetch(`${CONTROL_SERVER}/api/wifi`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enable }),
+    }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+    if (res.ok) {
+      log(`WiFi ${label} sent`, 'out');
+      if (enable) setTimeout(() => scanNetwork(), 3000);  // auto-scan after WiFi connects
+    } else {
+      log(`WiFi ctrl failed: ${res.error}`, 'error');
+    }
+  }
+
+  const CONTROL_SERVER = 'http://localhost:5000';
+
+  // ── Chip filter ───────────────────────────────────────────────────────────
+  function onChipFilter() {
+    const chip = document.getElementById('chip-select').value;
+    document.querySelectorAll('.card').forEach(c => {
+      const board = firmwares[c.dataset.fw]?.board ?? '';
+      c.classList.toggle('incompatible', !!chip && board !== chip);
+    });
+    // deselect if current selection became incompatible
+    if (selected && chip && firmwares[selected]?.board !== chip) {
+      selected = null;
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    }
+    updateButtons();
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  function run(action) {
+    if (!selected) return;
+    const port  = document.getElementById('port-select').value;
+    const otaIp = document.getElementById('ota-ip').value.trim();
+    if (action === 'upload' && !port)  { log('Select a port first', 'warn');  return; }
+    if (action === 'ota'    && !otaIp) { log('Enter OTA IP address', 'warn'); return; }
+    socket.emit('run', { firmware: selected, action, port, otaIp });
+  }
+
+  function kill() {
+    socket.emit('kill', {});
+  }
+
+  // ── Terminal ──────────────────────────────────────────────────────────────
+  const term = document.getElementById('terminal');
+  const PATTERNS = [
+    [/error/i,              'is-err'],
+    [/warning/i,            'is-warn'],
+    [/success|done|\[ok\]/i,'is-ok'],
+    [/compiling|linking|uploading|building/i,'is-info'],
+  ];
+
+  function log(text, level = 'out') {
+    if (level === 'out') progressParseLine(text);
+    const line = document.createElement('div');
+    line.className = `log-${level}`;
+    if (level === 'out') {
+      for (const [re, cls] of PATTERNS) {
+        if (re.test(text)) { line.classList.add(cls); break; }
+      }
+    }
+    line.textContent = text;
+    term.prepend(line);
+  }
+
+  function clearTerm() { term.innerHTML = ''; }
+
+  // ── Socket events ─────────────────────────────────────────────────────────
+  socket.on('log', ({ text, level }) => log(text, level));
+
+  socket.on('status', ({ state, action, firmware, code }) => {
+    if (state === 'running') {
+      setRunning(true);
+      progressReset(action);
+      if (firmware) cardState(firmware, 'running');
+      log(`▶ ${action.toUpperCase()} ${firmware}…`, 'cmd');
+    } else {
+      setRunning(false);
+      const gs = document.getElementById('global-status');
+      if (state === 'success') {
+        gs.className = 'success';
+        gs.textContent = `✓ ${action.toUpperCase()} OK`;
+        progressDone();
+        if (firmware) cardState(firmware, 'success');
+        log(`✓ ${action} success`, 'out');
+      } else if (state === 'error') {
+        gs.className = 'error';
+        gs.textContent = `✗ ${action.toUpperCase()} FAILED`;
+        progressError();
+        if (firmware) cardState(firmware, 'error');
+        log(`✗ ${action} failed (exit ${code ?? '?'})`, 'error');
+      } else {
+        gs.className = '';
+        gs.textContent = 'IDLE';
+        progressHide();
+      }
+    }
+  });
+
+  socket.on('connect',    () => log('Connected to flasher server', 'cmd'));
+  socket.on('disconnect', () => { log('Disconnected', 'error'); setRunning(false); });
+
+  init();
+</script>
+</body>
+</html>
