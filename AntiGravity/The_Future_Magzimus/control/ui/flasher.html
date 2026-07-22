@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network & OTA — MAGZIMUS</title>
+  <link rel="stylesheet" href="/shared.css">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    .page-content { padding: 32px; max-width: 1000px; }
+    .device-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+                  border-radius: 8px; border: 1px solid var(--outline-variant);
+                  background: var(--surface); margin-bottom: 8px; }
+    .device-check { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+    .device-info { flex: 1; }
+    .device-name { font-weight: 500; font-size: 0.9rem; }
+    .device-meta { font-size: 0.75rem; color: var(--on-surface-variant); }
+    .device-role { font-size: 0.75rem; }
+    .job-row { padding: 10px 12px; border-radius: 8px;
+               border: 1px solid var(--outline-variant); margin-bottom: 8px; }
+    .job-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .job-name { font-weight: 500; font-size: 0.875rem; flex: 1; }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--on-surface-variant); }
+    .wifi-indicator { width: 10px; height: 10px; border-radius: 50%;
+                      background: var(--outline); display: inline-block; margin-right: 4px; }
+    .wifi-indicator.on { background: var(--success); }
+    .section-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+    .env-select { min-width: 160px; }
+    pre.usb-code { background: #1C1B1F; color: #E8E0F0; padding: 14px;
+                   border-radius: 8px; font-size: 0.8rem; overflow-x: auto; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1 class="page-title">רשת & OTA</h1>
+      <p class="page-subtitle">גילוי מכשירים, עדכוני firmware מקביליים, ניהול רשת</p>
+    </div>
+
+    <!-- Discover Section -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="md-card-title">גילוי מכשירים (ESP-NOW)</div>
+      <div class="section-row">
+        <button class="md-btn md-btn-filled" onclick="discoverDevices()">🔍 Scan</button>
+        <button class="md-btn md-btn-tonal" onclick="wifiAll(true)">📶 WiFi ON — הכל</button>
+        <button class="md-btn md-btn-outline" onclick="wifiAll(false)">📵 WiFi OFF — הכל</button>
+        <span id="discover-status" style="font-size:.8rem;color:var(--on-surface-variant)"></span>
+      </div>
+      <div id="device-list">
+        <div class="empty-state">לחץ Scan לגילוי מכשירים</div>
+      </div>
+    </div>
+
+    <!-- OTA Flash Section -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="md-card-title">OTA Flash</div>
+      <div class="section-row">
+        <div>
+          <label class="md-label">Firmware Environment</label>
+          <select class="md-select env-select" id="ota-env">
+            <option value="staff-ota">staff-ota (S3)</option>
+            <option value="staff-c3-ota">staff-c3-ota (C3)</option>
+            <option value="relay-ota">relay-ota</option>
+            <option value="pwm-ota">pwm-ota</option>
+          </select>
+        </div>
+        <div>
+          <label class="md-label">Target (hostname / IP)</label>
+          <input class="md-input" id="ota-target-manual" placeholder="staff-s3.local או 192.168.x.x" style="width:240px">
+        </div>
+        <button class="md-btn md-btn-tonal" onclick="addManualTarget()">➕ הוסף</button>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <p style="font-size:.8rem;color:var(--on-surface-variant);margin-bottom:8px">
+          מכשירים מסומנים מגילוי (WiFi חייב להיות פעיל):
+        </p>
+        <div id="flash-target-list">
+          <div class="empty-state" style="padding:16px">אין מכשירים — סמן מגילוי או הוסף ידנית</div>
+        </div>
+      </div>
+
+      <div class="flex-row">
+        <button class="md-btn md-btn-filled" onclick="startFlash()">⚡ Flash — כל המסומנים</button>
+        <button class="md-btn md-btn-outline" onclick="clearJobs()">🗑 נקה לוג</button>
+      </div>
+
+      <div style="margin-top:16px" id="jobs-section">
+        <div id="jobs-list"></div>
+        <div class="log-box" id="ota-log" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- Firmware Builder -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="md-card-title">Firmware Builder</div>
+      <p style="font-size:.8rem;color:var(--on-surface-variant);margin-bottom:14px">
+        הידור firmware מקוד מקור → staging .bin → זמין ל-OTA Flash
+      </p>
+
+      <div class="section-row">
+        <div>
+          <label class="md-label">Firmware</label>
+          <select class="md-select" id="build-fw" onchange="onBuildFwChange()" style="min-width:170px">
+            <option value="staff">staff (S3)</option>
+            <option value="staff-c3">staff-c3 (C3)</option>
+            <option value="relay">relay</option>
+            <option value="pwm">pwm</option>
+            <option value="hub">hub</option>
+            <option value="progressbar">progressbar</option>
+            <option value="mic">mic</option>
+            <option value="pedal">pedal</option>
+          </select>
+        </div>
+        <button class="md-btn md-btn-filled" id="build-btn" onclick="startBuild()">🔨 Build</button>
+        <span id="build-status" style="font-size:.8rem;color:var(--on-surface-variant)"></span>
+      </div>
+
+      <!-- Effect Presets — shown only for staff firmware -->
+      <div id="effect-presets" style="display:none;border:1px solid var(--outline-variant);border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:.8rem;font-weight:600;margin-bottom:10px;color:var(--on-surface-variant)">EFFECT PRESETS — Staff LED</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="md-label">Flame hue max <span id="lbl-flame-hue">28</span></label>
+            <input type="range" min="10" max="60" value="28" id="preset-flame-hue"
+                   oninput="document.getElementById('lbl-flame-hue').textContent=this.value" style="width:100%">
+          </div>
+          <div>
+            <label class="md-label">Flame brightness min <span id="lbl-flame-bmin">120</span></label>
+            <input type="range" min="40" max="200" value="120" id="preset-flame-bmin"
+                   oninput="document.getElementById('lbl-flame-bmin').textContent=this.value" style="width:100%">
+          </div>
+          <div>
+            <label class="md-label">Flame saturation min <span id="lbl-flame-smin">210</span></label>
+            <input type="range" min="100" max="255" value="210" id="preset-flame-smin"
+                   oninput="document.getElementById('lbl-flame-smin').textContent=this.value" style="width:100%">
+          </div>
+          <div>
+            <label class="md-label">Rainbow speed <span id="lbl-rainbow">3</span></label>
+            <input type="range" min="1" max="12" value="3" id="preset-rainbow"
+                   oninput="document.getElementById('lbl-rainbow').textContent=this.value" style="width:100%">
+          </div>
+          <div>
+            <label class="md-label">Sparkle fade <span id="lbl-sparkle">180</span></label>
+            <input type="range" min="80" max="250" value="180" id="preset-sparkle"
+                   oninput="document.getElementById('lbl-sparkle').textContent=this.value" style="width:100%">
+          </div>
+        </div>
+      </div>
+
+      <div class="log-box" id="build-log" style="margin-bottom:12px;height:160px"></div>
+
+      <!-- Staged builds -->
+      <div style="font-size:.8rem;font-weight:600;margin-bottom:8px;color:var(--on-surface-variant)">STAGED BUILDS</div>
+      <div id="builds-list">
+        <div class="empty-state" style="padding:16px">אין builds — לחץ Build כדי להתחיל</div>
+      </div>
+    </div>
+
+    <!-- Hub Pause (heartbeat test) -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="md-card-title">Hub Heartbeat — בדיקות</div>
+      <div class="section-row">
+        <div>
+          <label class="md-label">השהיה (שניות)</label>
+          <input type="number" class="md-input" id="pause-sec" value="10" min="1" max="60" style="width:100px">
+        </div>
+        <button class="md-btn md-btn-tonal" onclick="hubPause()">⏸ עצור Hub Heartbeat</button>
+        <span id="pause-status" style="font-size:.8rem"></span>
+      </div>
+    </div>
+
+    <!-- USB Flash Instructions -->
+    <div class="md-card">
+      <div class="md-card-title">צריבה חוטית ראשונית (USB)</div>
+      <p style="font-size:.875rem;color:var(--on-surface-variant);margin-bottom:12px">
+        לצריבה ראשונית על מכשיר חדש (לפני שיש WiFi), חבר USB לחץ BOOT והרץ:
+      </p>
+      <pre class="usb-code"># Staff S3
+cd firmware/staff
+pio run -e staff -t upload
+
+# Staff C3
+pio run -e staff-c3 -t upload
+
+# Relay
+cd firmware/relay && pio run -e relay -t upload
+
+# PWM
+cd firmware/pwm && pio run -e pwm -t upload
+
+# Hub (ESP32 — לחץ BOOT ידנית)
+cd firmware/hub && pio run -e hub-esp32 -t upload</pre>
+      <p style="font-size:.8rem;color:var(--on-surface-variant);margin-top:8px">
+        לאחר הצריבה הראשונה — WiFi + OTA זמינים לכל העדכונים הבאים.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let _devices = [];        // discovered via ESP-NOW
+    let _flashTargets = [];   // targets queued for flash
+
+    // ─── Discovery ────────────────────────────────────────────────────
+    async function discoverDevices() {
+      const status = document.getElementById('discover-status');
+      status.textContent = 'סורק...';
+      try {
+        const res = await fetch('/api/discover', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({timeout: 2.5}),
+        });
+        const data = await res.json();
+        _devices = data.devices || [];
+        renderDeviceList();
+        status.textContent = `נמצאו ${_devices.length} מכשירים`;
+      } catch (e) {
+        status.textContent = 'שגיאה בסריקה';
+      }
+    }
+
+    function renderDeviceList() {
+      const el = document.getElementById('device-list');
+      if (!_devices.length) {
+        el.innerHTML = '<div class="empty-state">לא נמצאו מכשירים</div>';
+        return;
+      }
+      el.innerHTML = _devices.map((d, i) => `
+        <div class="device-row" id="dev-row-${i}">
+          <input type="checkbox" class="device-check" id="dev-check-${i}" onchange="onDeviceCheck(${i})">
+          <div class="device-info">
+            <div class="device-name">
+              <span class="wifi-indicator ${d.ip ? 'on' : ''}" id="wifi-dot-${i}"></span>
+              ${d.deviceId ? d.deviceId.toString(16).toUpperCase().padStart(4,'0') : '—'}
+              · ${d.role || '?'}
+            </div>
+            <div class="device-meta">
+              MAC: ${d.mac || '—'} &nbsp;|&nbsp; IP: <span id="dev-ip-${i}">${d.ip || '—'}</span>
+              &nbsp;|&nbsp; FW: ${d.firmware || '—'}
+            </div>
+          </div>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="wifiDevice(${i}, true)">WiFi ON</button>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="wifiDevice(${i}, false)">WiFi OFF</button>
+        </div>
+      `).join('');
+    }
+
+    function onDeviceCheck(i) {
+      const dev = _devices[i];
+      const checked = document.getElementById(`dev-check-${i}`).checked;
+      const ip = dev.ip;
+      if (checked && ip) {
+        if (!_flashTargets.find(t => t.target === ip)) {
+          _flashTargets.push({
+            target: ip,
+            label: `${dev.deviceId?.toString(16).toUpperCase().padStart(4,'0') || '?'} (${ip})`,
+          });
+          renderFlashTargets();
+        }
+      } else {
+        _flashTargets = _flashTargets.filter(t => t.target !== ip);
+        renderFlashTargets();
+      }
+    }
+
+    // ─── WiFi control ─────────────────────────────────────────────────
+    async function wifiDevice(i, enable) {
+      const dev = _devices[i];
+      await fetch('/api/wifi', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enable, targetId: dev.deviceId || 0xFFFF}),
+      });
+      if (enable) {
+        document.getElementById(`wifi-dot-${i}`).classList.add('on');
+        setTimeout(() => discoverDevices(), 3000);
+      } else {
+        document.getElementById(`wifi-dot-${i}`).classList.remove('on');
+      }
+    }
+
+    async function wifiAll(enable) {
+      await fetch('/api/wifi', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enable, targetId: 0xFFFF}),
+      });
+      if (enable) setTimeout(() => discoverDevices(), 3000);
+    }
+
+    // ─── Flash targets ─────────────────────────────────────────────────
+    function addManualTarget() {
+      const t = document.getElementById('ota-target-manual').value.trim();
+      if (!t) return;
+      if (!_flashTargets.find(x => x.target === t)) {
+        _flashTargets.push({target: t, label: t});
+        renderFlashTargets();
+      }
+      document.getElementById('ota-target-manual').value = '';
+    }
+
+    function removeTarget(i) {
+      _flashTargets.splice(i, 1);
+      renderFlashTargets();
+    }
+
+    function renderFlashTargets() {
+      const el = document.getElementById('flash-target-list');
+      if (!_flashTargets.length) {
+        el.innerHTML = '<div class="empty-state" style="padding:16px">אין מכשירים — סמן מגילוי או הוסף ידנית</div>';
+        return;
+      }
+      el.innerHTML = _flashTargets.map((t, i) => `
+        <div class="device-row" style="padding:8px 12px">
+          <div class="device-info">
+            <div class="device-name">${t.label}</div>
+          </div>
+          <span class="md-chip" id="target-status-${i}">ממתין</span>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="removeTarget(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    // ─── OTA Flash ────────────────────────────────────────────────────
+    let _jobMap = {};  // target → chip status
+
+    async function startFlash() {
+      if (!_flashTargets.length) { alert('לא נבחרו מכשירים'); return; }
+      const env = document.getElementById('ota-env').value;
+      const jobs = _flashTargets.map(t => ({env, target: t.target}));
+      _jobMap = {};
+      _flashTargets.forEach((t, i) => {
+        _jobMap[t.target] = i;
+        const chip = document.getElementById(`target-status-${i}`);
+        if (chip) { chip.textContent = '⏳ מעלה...'; chip.className = 'md-chip warning'; }
+      });
+      document.getElementById('ota-log').innerHTML = '';
+      await fetch('/api/ota/flash', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({jobs}),
+      });
+    }
+
+    function clearJobs() {
+      document.getElementById('ota-log').innerHTML = '';
+      document.getElementById('jobs-list').innerHTML = '';
+    }
+
+    // ─── OTA WebSocket events ─────────────────────────────────────────
+    socket.on('ota_log', d => {
+      const box = document.getElementById('ota-log');
+      const cls = d.level === 'error' ? 'log-err' : d.level === 'info' ? 'log-info' : '';
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = `[${d.target}] ${d.text}\n`;
+      box.appendChild(span);
+      box.scrollTop = box.scrollHeight;
+    });
+
+    socket.on('ota_done', d => {
+      const i = _jobMap[d.target];
+      if (i !== undefined) {
+        const chip = document.getElementById(`target-status-${i}`);
+        if (chip) {
+          chip.textContent = d.status === 'done' ? '✅ הושלם' : '❌ שגיאה';
+          chip.className = 'md-chip ' + (d.status === 'done' ? 'success' : 'error');
+        }
+      }
+    });
+
+    // ─── Hub Pause ────────────────────────────────────────────────────
+    async function hubPause() {
+      const sec = parseInt(document.getElementById('pause-sec').value) || 10;
+      const res = await fetch('/api/hub/pause', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({seconds: sec}),
+      });
+      const data = await res.json();
+      const st = document.getElementById('pause-status');
+      st.textContent = data.ok ? `Hub מושהה ל-${sec}s` : 'שגיאה';
+      st.style.color = data.ok ? 'var(--success)' : 'var(--error)';
+    }
+
+    // ─── Firmware Builder ─────────────────────────────────────────────
+    function onBuildFwChange() {
+      const fw = document.getElementById('build-fw').value;
+      const showPresets = fw === 'staff' || fw === 'staff-c3';
+      document.getElementById('effect-presets').style.display = showPresets ? 'block' : 'none';
+    }
+
+    function getPresets() {
+      return {
+        flameHueMax:    parseInt(document.getElementById('preset-flame-hue').value),
+        flameBrightMin: parseInt(document.getElementById('preset-flame-bmin').value),
+        flameSatMin:    parseInt(document.getElementById('preset-flame-smin').value),
+        rainbowStep:    parseInt(document.getElementById('preset-rainbow').value),
+        sparkleFade:    parseInt(document.getElementById('preset-sparkle').value),
+      };
+    }
+
+    async function startBuild() {
+      const fw  = document.getElementById('build-fw').value;
+      const btn = document.getElementById('build-btn');
+      const st  = document.getElementById('build-status');
+      const isStaff = fw === 'staff' || fw === 'staff-c3';
+      btn.disabled = true;
+      st.textContent = '⏳ בונה...';
+      st.style.color = 'var(--primary)';
+      document.getElementById('build-log').innerHTML = '';
+      const body = {fw};
+      if (isStaff) body.presets = getPresets();
+      try {
+        await fetch('/api/firmware/build', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        st.textContent = 'שגיאת תקשורת';
+        st.style.color = 'var(--error)';
+        btn.disabled = false;
+      }
+    }
+
+    async function loadBuilds() {
+      try {
+        const res  = await fetch('/api/firmware/builds');
+        const data = await res.json();
+        renderBuilds(data.builds || []);
+      } catch (_) {}
+    }
+
+    function renderBuilds(builds) {
+      const el = document.getElementById('builds-list');
+      if (!builds.length) {
+        el.innerHTML = '<div class="empty-state" style="padding:16px">אין builds — לחץ Build כדי להתחיל</div>';
+        return;
+      }
+      el.innerHTML = builds.map(b => `
+        <div class="device-row" style="padding:8px 12px">
+          <div class="device-info">
+            <div class="device-name">${b.file}</div>
+            <div class="device-meta">${(b.size/1024).toFixed(1)} KB &nbsp;|&nbsp; ${b.stamp.replace('_',' ')}</div>
+          </div>
+          <button class="md-btn md-btn-outline md-btn-sm"
+                  onclick="flashStagedBin('${b.file}','${b.fw}')">⚡ Flash OTA</button>
+        </div>
+      `).join('');
+    }
+
+    async function flashStagedBin(file, fw) {
+      const target = prompt(`IP/hostname של ${fw} לפלאש:`);
+      if (!target) return;
+      // Use ota/flash endpoint with pre-built bin flag
+      await fetch('/api/ota/flash', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({jobs: [{env: fw + '-ota', target, stagedBin: file}]}),
+      });
+    }
+
+    socket.on('build_log', d => {
+      const box = document.getElementById('build-log');
+      const cls = d.level === 'error' ? 'log-err' : d.level === 'info' ? 'log-info' : '';
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = d.text + '\n';
+      box.appendChild(span);
+      box.scrollTop = box.scrollHeight;
+    });
+
+    socket.on('build_done', d => {
+      const btn = document.getElementById('build-btn');
+      const st  = document.getElementById('build-status');
+      btn.disabled = false;
+      if (d.status === 'done') {
+        st.textContent = '✅ הושלם';
+        st.style.color = 'var(--success)';
+        loadBuilds();
+      } else {
+        st.textContent = '❌ שגיאה';
+        st.style.color = 'var(--error)';
+      }
+    });
+
+    loadBuilds();
+
+    socket.on('connect', () => {});
+    socket.on('telemetry', () => {});  // keep socket alive
+  </script>
+</body>
+</html>

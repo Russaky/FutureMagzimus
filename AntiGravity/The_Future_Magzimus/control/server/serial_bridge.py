@@ -16,11 +16,19 @@ class _S(IntEnum):
 
 class SerialBridge:
     def __init__(self, port: str, baud: int,
-                 on_telemetry: Callable[[dict], None],
-                 on_identity:  Callable[[dict], None] | None = None):
+                 on_telemetry:     Callable[[dict], None],
+                 on_identity:      Callable[[dict], None] | None = None,
+                 on_mic_telemetry: Callable[[dict], None] | None = None,
+                 on_pedal_event:   Callable[[dict], None] | None = None,
+                 on_effect_list:   Callable[[dict], None] | None = None,
+                 on_disconnect:    Callable[[], None] | None = None):
         self._ser = serial.Serial(port, baud, timeout=0.05)
-        self._on_telemetry = on_telemetry
-        self._on_identity  = on_identity
+        self._on_telemetry     = on_telemetry
+        self._on_identity      = on_identity
+        self._on_mic_telemetry = on_mic_telemetry
+        self._on_pedal_event   = on_pedal_event
+        self._on_effect_list   = on_effect_list
+        self._on_disconnect    = on_disconnect
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._lock = threading.Lock()
         self._reset()
@@ -30,7 +38,11 @@ class SerialBridge:
 
     def send(self, frame: bytes):
         with self._lock:
-            self._ser.write(frame)
+            try:
+                self._ser.write(frame)
+            except serial.SerialException:
+                self._fire_disconnect()
+                raise
 
     def close(self):
         self._ser.close()
@@ -43,6 +55,10 @@ class SerialBridge:
         self._payload_len = 0
         self._payload     = bytearray()
 
+    def _fire_disconnect(self):
+        if self._on_disconnect:
+            self._on_disconnect()
+
     def _run(self):
         while True:
             try:
@@ -50,6 +66,7 @@ class SerialBridge:
                 for b in chunk:
                     self._parse(b)
             except serial.SerialException:
+                self._fire_disconnect()
                 break
 
     def _parse(self, b: int):
@@ -82,10 +99,26 @@ class SerialBridge:
             data = proto.parse_staff_telemetry(payload)
             if data:
                 self._on_telemetry(data)
+        elif msg_type == proto.MSG_MIC_TELEMETRY:
+            data = proto.parse_mic_telemetry(payload)
+            if data:
+                if self._on_mic_telemetry:
+                    self._on_mic_telemetry(data)
+                self._on_telemetry({**data, '_type': 'mic_telemetry'})
+        elif msg_type == proto.MSG_PEDAL_EVENT:
+            data = proto.parse_pedal_event(payload)
+            if data:
+                if self._on_pedal_event:
+                    self._on_pedal_event(data)
+                self._on_telemetry({**data, '_type': 'pedal_event'})
         elif msg_type == proto.MSG_IDENTITY:
             data = proto.parse_identity(payload)
             if data and self._on_identity:
                 self._on_identity(data)
+        elif msg_type == proto.MSG_EFFECT_LIST:
+            data = proto.parse_effect_list(payload)
+            if data and self._on_effect_list:
+                self._on_effect_list(data)
         elif msg_type == proto.MSG_AUTONOMOUS:
             data = proto.parse_autonomous(payload)
             if data and self._on_identity:

@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Node Editor — MAGZIMUS</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    body { overflow: hidden; }
+    body.has-sidebar .page-content { margin-left: var(--sidebar-w); }
+    .page-content { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Toolbar ── */
+    .editor-toolbar {
+      padding: 6px 12px; border-bottom: 1px solid var(--outline-variant);
+      background: var(--surface-container);
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .toolbar-sep { width: 1px; background: var(--outline-variant); height: 22px; margin: 0 2px; }
+    .editor-name-input {
+      background: transparent; border: 1px solid var(--outline-variant);
+      border-radius: 4px; padding: 4px 8px; font-size: 0.82rem;
+      color: var(--on-surface); font-family: inherit; width: 180px;
+    }
+    .editor-name-input:focus { outline: none; border-color: var(--primary); }
+
+    /* ── Main area ── */
+    .editor-body { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Node Library Sidebar ── */
+    .node-lib {
+      width: 180px; flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--outline-variant);
+      overflow-y: auto; padding: 8px;
+    }
+    .lib-cat { font-size: .7rem; font-weight: 700; color: var(--on-surface-variant);
+               letter-spacing: .8px; padding: 6px 4px 3px; }
+    .lib-btn {
+      display: flex; align-items: center; gap: 6px;
+      width: 100%; padding: 7px 8px; margin-bottom: 3px;
+      border: 1px solid var(--outline-variant); border-radius: 8px;
+      background: var(--surface-container); cursor: pointer;
+      font-size: .78rem; color: var(--on-surface); text-align: left;
+      transition: all .12s;
+    }
+    .lib-btn:hover { border-color: var(--primary); background: var(--primary-container); }
+    .lib-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Canvas ── */
+    .canvas-wrap {
+      flex: 1; position: relative; overflow: hidden; background: #F8F5FF;
+      background-image: radial-gradient(circle, #CAC4D0 1px, transparent 1px);
+      background-size: 24px 24px; cursor: default; user-select: none;
+    }
+    #graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+    /* ── Properties Panel ── */
+    .props-panel {
+      width: 280px; flex-shrink: 0; border-left: 1px solid var(--outline-variant);
+      background: var(--surface); overflow-y: auto; padding: 14px;
+    }
+    .props-panel h4 { margin: 0 0 12px; font-size: .88rem; }
+    .prop-row { margin-bottom: 10px; }
+    .prop-label { font-size: .73rem; color: var(--on-surface-variant); margin-bottom: 3px; }
+    .prop-input, .prop-select {
+      width: 100%; padding: 5px 8px; border: 1px solid var(--outline-variant);
+      border-radius: 6px; font-size: .8rem; background: var(--surface-container);
+      color: var(--on-surface); font-family: inherit;
+    }
+    .prop-input:focus, .prop-select:focus { outline: none; border-color: var(--primary); }
+    .prop-range { display: flex; gap: 6px; align-items: center; }
+    .prop-range input[type=range] { flex: 1; }
+    .prop-range span { font-size: .78rem; width: 40px; text-align: right; color: var(--on-surface-variant); }
+
+    /* Step rows in sequence node */
+    .step-row { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
+    .step-t { width: 52px; }
+    .step-cmd { flex: 1; }
+    .step-del { background: none; border: none; cursor: pointer; color: #c00; font-size: 1rem; }
+
+    /* Validation */
+    .val-error { font-size: .75rem; color: #c00; padding: 4px 8px; background: #fee; border-radius: 6px; margin-bottom: 4px; }
+    .val-ok    { font-size: .75rem; color: #080; padding: 4px 8px; background: #efe; border-radius: 6px; }
+
+    /* Node SVG */
+    .node-group { cursor: grab; user-select: none; }
+    .node-group:active { cursor: grabbing; }
+    .node-group.selected .node-rect { stroke-width: 2.5 !important; }
+    .port-dot { cursor: crosshair; }
+    .port-dot:hover { r: 7; }
+    .edge-path { fill: none; stroke-width: 2; pointer-events: none; }
+    .edge-draft { fill: none; stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; }
+  </style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="page-content">
+
+  <!-- Toolbar -->
+  <div class="editor-toolbar">
+    <span style="font-size:.75rem;font-weight:700;color:var(--primary);letter-spacing:.5px">NODE EDITOR</span>
+    <div class="toolbar-sep"></div>
+    <input class="editor-name-input" id="num-name" placeholder="Number name" value="New Number">
+    <input class="editor-name-input" id="num-id" placeholder="id slug" value="new-number" style="width:140px">
+    <div class="toolbar-sep"></div>
+    <button class="md-btn md-btn-filled md-btn-sm" onclick="saveNumber()">💾 שמור</button>
+    <button class="md-btn md-btn-tonal md-btn-sm" onclick="loadFromList()">📂 טען</button>
+    <select class="md-select" id="load-select" style="font-size:.78rem;padding:5px 8px" onchange="loadSelected()">
+      <option value="">— קיים —</option>
+    </select>
+    <div class="toolbar-sep"></div>
+    <button class="md-btn md-btn-outline md-btn-sm" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="md-btn md-btn-outline md-btn-sm" onclick="redo()" title="Redo (Ctrl+Y)">↪ Redo</button>
+    <div class="toolbar-sep"></div>
+    <button class="md-btn md-btn-tonal md-btn-sm" onclick="validate()">✔ Validate</button>
+    <button class="md-btn md-btn-filled md-btn-sm" id="btn-ota" onclick="otaUpload()" disabled>⬆ OTA Upload</button>
+    <button class="md-btn md-btn-outline md-btn-sm" onclick="exportJSON()">⬇ JSON</button>
+    <div class="toolbar-sep"></div>
+    <button class="md-btn md-btn-outline md-btn-sm" onclick="clearGraph()">🗑 נקה</button>
+    <span id="save-status" style="font-size:.75rem;color:var(--on-surface-variant);margin-left:6px"></span>
+  </div>
+
+  <div class="editor-body">
+    <!-- Node Library -->
+    <div class="node-lib">
+      <div class="lib-cat">SENSORS</div>
+      <button class="lib-btn" onclick="addNode('sensor_staff')"><span class="lib-dot" style="background:#7C4DFF"></span>Staff</button>
+      <button class="lib-btn" onclick="addNode('sensor_mic')"><span class="lib-dot" style="background:#7C4DFF"></span>Microphone</button>
+      <button class="lib-btn" onclick="addNode('sensor_pedal')"><span class="lib-dot" style="background:#7C4DFF"></span>Pedal</button>
+
+      <div class="lib-cat">LOGIC</div>
+      <button class="lib-btn" onclick="addNode('trigger')"><span class="lib-dot" style="background:#F57C00"></span>TRIGGER</button>
+      <button class="lib-btn" onclick="addNode('combine')"><span class="lib-dot" style="background:#00796B"></span>COMBINE</button>
+
+      <div class="lib-cat">CONTROL</div>
+      <button class="lib-btn" onclick="addNode('showtimer')"><span class="lib-dot" style="background:#D32F2F"></span>SHOW TIMER</button>
+      <button class="lib-btn" onclick="addNode('accumulator')"><span class="lib-dot" style="background:#F57F17"></span>ACCUMULATOR</button>
+
+      <div class="lib-cat">ACTIONS</div>
+      <button class="lib-btn" onclick="addNode('sequence')"><span class="lib-dot" style="background:#388E3C"></span>SEQUENCE</button>
+      <button class="lib-btn" onclick="addNode('event_node')"><span class="lib-dot" style="background:#1976D2"></span>EVENT</button>
+      <button class="lib-btn" onclick="addNode('idle')"><span class="lib-dot" style="background:#616161"></span>IDLE</button>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-wrap" id="canvas-wrap">
+      <svg id="graph-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+            <polygon points="0 0,7 2.5,0 5" fill="#888"/>
+          </marker>
+        </defs>
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+        <path class="edge-draft" id="draft-edge" d="" style="display:none;stroke:#7C4DFF"/>
+      </svg>
+    </div>
+
+    <!-- Properties Panel -->
+    <div class="props-panel" id="props-panel">
+      <h4>Properties</h4>
+      <div id="props-content" style="color:var(--on-surface-variant);font-size:.8rem">Select a node to edit.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+let _nodes  = [];   // {id, type, x, y, data:{…}}
+let _edges  = [];   // {id, srcNode, srcPort, dstNode, dstPort}
+let _nextId = 1;
+let _sel    = null; // selected nodeId
+let _undoStack = []; // JSON snapshots (max 50)
+let _redoStack = [];
+let _connecting = null; // {nodeId, port, isOut, mx, my}
+let _dragging   = null; // {nodeId, ox, oy}
+let _pan   = {x: 0, y: 0};
+let _panStart = null;
+let _zoom  = 1.0;
+let _valid = false;   // last validation result
+let _autosaveTimer = null;
+
+const svg  = document.getElementById('graph-svg');
+const eL   = document.getElementById('edges-layer');
+const nL   = document.getElementById('nodes-layer');
+const draft = document.getElementById('draft-edge');
+
+// Node color map
+const NODE_COLORS = {
+  sensor_staff:  '#7C4DFF',
+  sensor_mic:    '#7C4DFF',
+  sensor_pedal:  '#7C4DFF',
+  trigger:       '#F57C00',
+  combine:       '#00796B',
+  showtimer:     '#D32F2F',
+  accumulator:   '#F57F17',
+  sequence:      '#388E3C',
+  event_node:    '#1976D2',
+  idle:          '#616161',
+};
+
+const NODE_LABELS = {
+  sensor_staff:  '📡 Staff',
+  sensor_mic:    '🎤 Microphone',
+  sensor_pedal:  '🦶 Pedal',
+  trigger:       '⚡ TRIGGER',
+  combine:       '🔗 COMBINE',
+  showtimer:     '⏱ SHOW TIMER',
+  accumulator:   '📊 ACCUMULATOR',
+  sequence:      '▶ SEQUENCE',
+  event_node:    '💥 EVENT',
+  idle:          '💤 IDLE',
+};
+
+// Port definitions per node type: [{id, label, isOut, yFrac}]
+function getNodePorts(type) {
+  switch(type) {
+    case 'sensor_staff':
+      return [
+        {id:'angle',         label:'angle',         isOut:true, yFrac:.25},
+        {id:'velocity',      label:'velocity',      isOut:true, yFrac:.38},
+        {id:'acceleration',  label:'accel',         isOut:true, yFrac:.51},
+        {id:'throw',         label:'throw',         isOut:true, yFrac:.64},
+        {id:'catch',         label:'catch',         isOut:true, yFrac:.77},
+        {id:'spin_direction',label:'spin_dir',      isOut:true, yFrac:.90},
+      ];
+    case 'sensor_mic':
+      return [
+        {id:'rms',       label:'rms',       isOut:true, yFrac:.33},
+        {id:'peak',      label:'peak',      isOut:true, yFrac:.55},
+        {id:'frequency', label:'freq (Hz)', isOut:true, yFrac:.77},
+      ];
+    case 'sensor_pedal':
+      return [
+        {id:'short',   label:'short',   isOut:true, yFrac:.2},
+        {id:'long',    label:'long',    isOut:true, yFrac:.35},
+        {id:'double',  label:'double',  isOut:true, yFrac:.5},
+        {id:'triple',  label:'triple',  isOut:true, yFrac:.65},
+        {id:'press',   label:'press',   isOut:true, yFrac:.8},
+        {id:'release', label:'release', isOut:true, yFrac:.95},
+      ];
+    case 'trigger':
+      return [
+        {id:'in',  label:'', isOut:false, yFrac:.5},
+        {id:'out', label:'', isOut:true,  yFrac:.5},
+      ];
+    case 'combine':
+      return [
+        {id:'in1', label:'', isOut:false, yFrac:.35},
+        {id:'in2', label:'', isOut:false, yFrac:.65},
+        {id:'out', label:'', isOut:true,  yFrac:.5},
+      ];
+    case 'showtimer':
+      return [
+        {id:'start', label:'start', isOut:false, yFrac:.4},
+        {id:'done',  label:'done',  isOut:true,  yFrac:.6},
+      ];
+    case 'accumulator':
+      return [
+        {id:'in',     label:'pulse', isOut:false, yFrac:.33},
+        {id:'value',  label:'value', isOut:true,  yFrac:.33},
+        {id:'scored', label:'scored',isOut:true,  yFrac:.55},
+        {id:'climax', label:'climax',isOut:true,  yFrac:.77},
+      ];
+    case 'sequence':
+      return [
+        {id:'start',      label:'start',      isOut:false, yFrac:.3},
+        {id:'stop',       label:'stop',       isOut:false, yFrac:.5},
+        {id:'done',       label:'done',       isOut:true,  yFrac:.3},
+        {id:'interrupted',label:'interrupted', isOut:true,  yFrac:.55},
+      ];
+    case 'event_node':
+      return [
+        {id:'in',  label:'', isOut:false, yFrac:.5},
+      ];
+    case 'idle':
+      return [
+        {id:'in', label:'', isOut:false, yFrac:.5},
+      ];
+    default: return [];
+  }
+}
+
+function defaultData(type) {
+  switch(type) {
+    case 'sensor_staff':   return {deviceId:'staff_01', label:'Staff'};
+    case 'sensor_mic':     return {deviceId:'mic_01',   label:'Microphone'};
+    case 'sensor_pedal':   return {deviceId:'pedal_01', label:'Pedal'};
+    case 'trigger':        return {triggerType:'range', signal:'velocity', minVal:2.0, maxVal:20.0,
+                                    customCond:'20 <= angle <= 340', debounce:50, cooldown:200, priority:3};
+    case 'combine':        return {logic:'AND', timeWindow:500};
+    case 'showtimer':      return {duration:60, onStart:'reset_all'};
+    case 'accumulator':    return {threshold:10, decay:'off', decayRate:0, autoReset:true};
+    case 'sequence':       return {device:'staff', targetId:65535, policy:'INTERRUPT',
+                                    steps:[{t:0,cmd:'LED_SOLID',r:255,g:0,b:0,brightness:200},{t:2,cmd:'LED_OFF'}]};
+    case 'event_node':     return {eventType:'flash', device:'staff', targetId:65535,
+                                    r:255, g:255, b:255, brightness:200, durationMs:100};
+    case 'idle':           return {device:'staff', targetId:65535, cmd:'LED_OFF'};
+    default:               return {};
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SNAPSHOT / UNDO / REDO
+// ═══════════════════════════════════════════════════════════════════════════════
+function snapshot() {
+  _undoStack.push(JSON.stringify({nodes:_nodes, edges:_edges, nextId:_nextId}));
+  if (_undoStack.length > 50) _undoStack.shift();
+  _redoStack = [];
+}
+
+function undo() {
+  if (!_undoStack.length) return;
+  _redoStack.push(JSON.stringify({nodes:_nodes, edges:_edges, nextId:_nextId}));
+  restoreSnapshot(_undoStack.pop());
+}
+
+function redo() {
+  if (!_redoStack.length) return;
+  _undoStack.push(JSON.stringify({nodes:_nodes, edges:_edges, nextId:_nextId}));
+  restoreSnapshot(_redoStack.pop());
+}
+
+function restoreSnapshot(json) {
+  const s = JSON.parse(json);
+  _nodes = s.nodes; _edges = s.edges; _nextId = s.nextId;
+  _sel = null;
+  redrawAll();
+  showProps(null);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADD / DELETE NODE
+// ═══════════════════════════════════════════════════════════════════════════════
+function addNode(type, x, y) {
+  snapshot();
+  x = x ?? 200 + Math.random()*200;
+  y = y ?? 80 + _nodes.length*80;
+  const node = {id:`n${_nextId++}`, type, x, y, data: defaultData(type)};
+  _nodes.push(node);
+  renderNode(node);
+  selectNode(node.id);
+  scheduleAutosave();
+}
+
+function deleteNode(id) {
+  snapshot();
+  _edges = _edges.filter(e => e.srcNode !== id && e.dstNode !== id);
+  _nodes = _nodes.filter(n => n.id !== id);
+  document.getElementById(`node-${id}`)?.remove();
+  redrawEdges();
+  if (_sel === id) { _sel = null; showProps(null); }
+  scheduleAutosave();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════════
+const NW = 190;
+
+function nodeH(type) {
+  const ports = getNodePorts(type);
+  return Math.max(70, 40 + ports.length * 22);
+}
+
+function portY(type, portId) {
+  const ports = getNodePorts(type);
+  const p = ports.find(p => p.id === portId);
+  return p ? p.yFrac * nodeH(type) : nodeH(type)/2;
+}
+
+function toSvg(x, y) {
+  return { x: x/(_zoom) - _pan.x, y: y/(_zoom) - _pan.y };
+}
+
+function toScreen(x, y) {
+  return { x: (x + _pan.x)*_zoom, y: (y + _pan.y)*_zoom };
+}
+
+function redrawAll() {
+  nL.innerHTML = '';
+  eL.innerHTML = '';
+  _nodes.forEach(renderNode);
+  redrawEdges();
+}
+
+function renderNode(node) {
+  const existing = document.getElementById(`node-${node.id}`);
+  if (existing) existing.remove();
+
+  const color = NODE_COLORS[node.type] || '#888';
+  const label = NODE_LABELS[node.type] || node.type;
+  const h = nodeH(node.type);
+  const ports = getNodePorts(node.type);
+  const {x: sx, y: sy} = toScreen(node.x, node.y);
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.id = `node-${node.id}`;
+  g.setAttribute('class',`node-group${_sel===node.id?' selected':''}`);
+  g.setAttribute('transform',`translate(${sx},${sy})`);
+  if (node.data.frozen) g.setAttribute('opacity','0.4');
+
+  const bodyFill = hexToRgba(color, 0.08);
+  const bodyBg   = '#FFFFFF';
+
+  let portsSvg = '';
+  for (const p of ports) {
+    const px = p.isOut ? NW : 0;
+    const py = p.yFrac * h;
+    portsSvg += `
+      <circle class="port-dot" cx="${px}" cy="${py}" r="5"
+        fill="${color}" stroke="white" stroke-width="1.5"
+        data-node="${node.id}" data-port="${p.id}" data-out="${p.isOut}"/>
+      <text x="${p.isOut ? NW-8 : 8}" y="${py+4}"
+        text-anchor="${p.isOut?'end':'start'}"
+        font-size="9" fill="#666">${p.label}</text>`;
+  }
+
+  const subtext = (() => {
+    const d = node.data;
+    switch(node.type) {
+      case 'sensor_staff':  return d.deviceId || '';
+      case 'sensor_mic':    return d.deviceId || '';
+      case 'sensor_pedal':  return d.deviceId || '';
+      case 'trigger':       return `${d.signal} [${d.minVal}–${d.maxVal}]`;
+      case 'combine':       return `AND · ${d.timeWindow}ms`;
+      case 'showtimer':     return `${d.duration}s`;
+      case 'accumulator':   return `thr:${d.threshold} decay:${d.decay}`;
+      case 'sequence':      return `${d.device} · ${d.steps?.length||0} steps`;
+      case 'event_node':    return `${d.eventType}`;
+      case 'idle':          return `${d.device}`;
+      default: return '';
+    }
+  })();
+
+  g.innerHTML = `
+    <rect x="2" y="3" width="${NW}" height="${h}" rx="9" fill="rgba(0,0,0,.07)"/>
+    <rect class="node-rect" width="${NW}" height="${h}" rx="9"
+      fill="${bodyBg}" stroke="${color}" stroke-width="1.5"/>
+    <rect width="${NW}" height="28" rx="9" fill="${color}"/>
+    <rect y="18" width="${NW}" height="10" fill="${color}"/>
+    <text x="10" y="19" fill="white" font-size="11" font-weight="600">${label}</text>
+    <text x="10" y="42" fill="#555" font-size="10">${subtext}</text>
+    ${portsSvg}
+    <rect width="${NW}" height="${h}" fill="transparent" class="node-hit"
+      data-node-id="${node.id}"/>`;
+
+  nL.appendChild(g);
+
+  g.addEventListener('mousedown', onNodeMD);
+  g.querySelectorAll('.port-dot').forEach(p => p.addEventListener('mousedown', onPortMD));
+  g.querySelector('.node-hit').addEventListener('click', e => {
+    e.stopPropagation();
+    selectNode(node.id);
+  });
+  g.querySelector('.node-hit').addEventListener('dblclick', e => {
+    e.stopPropagation();
+    selectNode(node.id);
+  });
+  g.querySelector('.node-hit').addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (confirm(`Delete node "${label}"?`)) deleteNode(node.id);
+  });
+}
+
+function hexToRgba(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function redrawEdges() {
+  eL.innerHTML = '';
+  for (const edge of _edges) {
+    const sn = _nodes.find(n => n.id === edge.srcNode);
+    const dn = _nodes.find(n => n.id === edge.dstNode);
+    if (!sn || !dn) continue;
+    // Port screen positions: node origin (zoomed+panned) + local port offset (unscaled, SVG pixels)
+    const snO = toScreen(sn.x, sn.y);
+    const dnO = toScreen(dn.x, dn.y);
+    const sx = snO.x + NW;
+    const sy = snO.y + portY(sn.type, edge.srcPort);
+    const dx = dnO.x;
+    const dy = dnO.y + portY(dn.type, edge.dstPort);
+    const cp = (dx-sx)*0.45;
+    const color = NODE_COLORS[sn.type] || '#888';
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('class','edge-path');
+    path.setAttribute('stroke', color);
+    path.setAttribute('marker-end','url(#arrow)');
+    path.setAttribute('d',`M${sx},${sy} C${sx+cp},${sy} ${dx-cp},${dy} ${dx},${dy}`);
+    path.setAttribute('data-edge-id', edge.id);
+    path.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      snapshot();
+      _edges = _edges.filter(ex => ex.id !== edge.id);
+      redrawEdges();
+      scheduleAutosave();
+    });
+    eL.appendChild(path);
+  }
+}
+
+function refreshNode(id) {
+  const n = _nodes.find(n => n.id === id);
+  if (n) renderNode(n);
+  redrawEdges();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SELECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+function selectNode(id) {
+  if (_sel) document.getElementById(`node-${_sel}`)?.classList.remove('selected');
+  _sel = id;
+  document.getElementById(`node-${id}`)?.classList.add('selected');
+  const node = _nodes.find(n => n.id === id);
+  showProps(node);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DRAG / PAN / ZOOM
+// ═══════════════════════════════════════════════════════════════════════════════
+function onNodeMD(e) {
+  if (e.target.classList.contains('port-dot')) return;
+  if (e.target.classList.contains('node-hit') && e.detail === 2) return;
+  e.stopPropagation();
+  const g = e.currentTarget;
+  const nid = g.id.replace('node-','');
+  const node = _nodes.find(n => n.id === nid);
+  if (!node) return;
+  const {x:sx, y:sy} = toScreen(node.x, node.y);
+  _dragging = {nodeId:nid, ox: e.clientX - sx, oy: e.clientY - sy};
+}
+
+function onPortMD(e) {
+  e.stopPropagation();
+  const nid  = e.target.dataset.node;
+  const port = e.target.dataset.port;
+  const isOut = e.target.dataset.out === 'true';
+  _connecting = {nodeId: nid, port, isOut, mx: e.clientX, my: e.clientY};
+  draft.style.display = '';
+}
+
+const cvs = document.getElementById('canvas-wrap');
+
+cvs.addEventListener('mousedown', e => {
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    _panStart = {mx: e.clientX, my: e.clientY, px: _pan.x, py: _pan.y};
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (_panStart) {
+    _pan.x = _panStart.px + (e.clientX - _panStart.mx)/_zoom;
+    _pan.y = _panStart.py + (e.clientY - _panStart.my)/_zoom;
+    redrawAll();
+    return;
+  }
+  if (_dragging) {
+    const node = _nodes.find(n => n.id === _dragging.nodeId);
+    if (!node) return;
+    const raw = toSvg(e.clientX - _dragging.ox, e.clientY - _dragging.oy);
+    node.x = raw.x; node.y = raw.y;
+    renderNode(node); redrawEdges();
+    return;
+  }
+  if (_connecting) {
+    const cn = _nodes.find(n=>n.id===_connecting.nodeId);
+    const cnO = toScreen(cn?.x||0, cn?.y||0);
+    const portLocalX = _connecting.isOut ? NW : 0;
+    const portLocalY = portY(cn?.type, _connecting.port);
+    draft.setAttribute('d',`M${cnO.x+portLocalX},${cnO.y+portLocalY} L${e.clientX},${e.clientY}`);
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  _panStart = null;
+  if (_dragging) {
+    snapshot();
+    scheduleAutosave();
+    _dragging = null;
+    return;
+  }
+  if (_connecting) {
+    // Find target port under mouse
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    if (target?.classList.contains('port-dot')) {
+      const tnid  = target.dataset.node;
+      const tport = target.dataset.port;
+      const tout  = target.dataset.out === 'true';
+      if (_connecting.nodeId !== tnid && _connecting.isOut !== tout) {
+        const srcNode = _connecting.isOut ? _connecting.nodeId : tnid;
+        const srcPort = _connecting.isOut ? _connecting.port    : tport;
+        const dstNode = _connecting.isOut ? tnid               : _connecting.nodeId;
+        const dstPort = _connecting.isOut ? tport              : _connecting.port;
+        // Avoid duplicate edge
+        const dup = _edges.find(ex =>
+          ex.srcNode===srcNode && ex.srcPort===srcPort && ex.dstNode===dstNode && ex.dstPort===dstPort);
+        if (!dup) {
+          snapshot();
+          _edges.push({id:`e${_nextId++}`, srcNode, srcPort, dstNode, dstPort});
+          redrawEdges();
+          scheduleAutosave();
+        }
+      }
+    }
+    _connecting = null;
+    draft.setAttribute('d','');
+    draft.style.display = 'none';
+  }
+});
+
+cvs.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.91;
+  const rect = cvs.getBoundingClientRect();
+  const mx = (e.clientX - rect.left)/_zoom;
+  const my = (e.clientY - rect.top)/_zoom;
+  _pan.x = mx - (mx - _pan.x)*factor;
+  _pan.y = my - (my - _pan.y)*factor;
+  _zoom *= factor;
+  _zoom = Math.max(0.3, Math.min(3.0, _zoom));
+  redrawAll();
+}, {passive: false});
+
+cvs.addEventListener('click', e => {
+  if (e.target === cvs || e.target === svg) {
+    if (_sel) { document.getElementById(`node-${_sel}`)?.classList.remove('selected'); _sel=null; showProps(null); }
+  }
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey||e.metaKey) && (e.key==='y'||(e.shiftKey&&e.key==='z'))) { e.preventDefault(); redo(); }
+  if (e.key==='Delete'||e.key==='Backspace') {
+    if (_sel && document.activeElement===document.body) deleteNode(_sel);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROPERTIES PANEL
+// ═══════════════════════════════════════════════════════════════════════════════
+function toggleFreeze(nodeId) {
+  const node = _nodes.find(n=>n.id===nodeId);
+  if (!node) return;
+  node.data.frozen = !node.data.frozen;
+  refreshNode(nodeId);
+  showProps(node);
+  scheduleAutosave();
+}
+
+function showProps(node) {
+  const el = document.getElementById('props-content');
+  if (!node) { el.innerHTML = '<span style="font-size:.8rem;color:var(--on-surface-variant)">Select a node to edit.</span>'; return; }
+  const freezeBtn = `<button onclick="toggleFreeze('${node.id}')" style="margin-bottom:8px;font-size:.75rem;padding:4px 10px;border-radius:6px;border:1px solid var(--outline);background:${node.data.frozen?'var(--error-container)':'var(--surface-variant)'};cursor:pointer">
+    ${node.data.frozen ? '❄ Frozen — click to unfreeze' : '☁ Freeze node'}
+  </button><br>`;
+  el.innerHTML = freezeBtn + buildPropsForm(node);
+  // wire change listeners
+  el.querySelectorAll('[data-field]').forEach(inp => {
+    const field = inp.dataset.field;
+    const update = () => {
+      let val = inp.type==='number'||inp.type==='range' ? Number(inp.value) : inp.value;
+      if (inp.type==='checkbox') val = inp.checked;
+      node.data[field] = val;
+      // Update range display
+      const disp = el.querySelector(`[data-display="${field}"]`);
+      if (disp) disp.textContent = val;
+      if (field === 'triggerType') {
+        showProps(node);
+      }
+      refreshNode(node.id);
+      scheduleAutosave();
+    };
+    inp.addEventListener('input', update);
+    if (inp.tagName === 'SELECT') {
+      inp.addEventListener('change', update);
+    }
+  });
+  // steps editor for sequence
+  const stepsDiv = el.querySelector('#steps-editor');
+  if (stepsDiv) renderStepsEditor(node, stepsDiv);
+}
+
+function buildPropsForm(node) {
+  const d = node.data;
+  const field = (f, label, type='text', extra='') => `
+    <div class="prop-row">
+      <div class="prop-label">${label}</div>
+      <input class="prop-input" data-field="${f}" type="${type}" value="${d[f]??''}" ${extra}/>
+    </div>`;
+  const select = (f, label, opts) => `
+    <div class="prop-row">
+      <div class="prop-label">${label}</div>
+      <select class="prop-select" data-field="${f}">
+        ${opts.map(([v,l])=>`<option value="${v}"${d[f]==v?' selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>`;
+  const slider = (f, label, min, max, step=1) => `
+    <div class="prop-row">
+      <div class="prop-label">${label}</div>
+      <div class="prop-range">
+        <input type="range" data-field="${f}" min="${min}" max="${max}" step="${step}" value="${d[f]??min}"/>
+        <span data-display="${f}">${d[f]??min}</span>
+      </div>
+    </div>`;
+
+  switch(node.type) {
+    case 'sensor_staff':
+    case 'sensor_mic':
+    case 'sensor_pedal':
+      return `<h4>${NODE_LABELS[node.type]}</h4>
+        ${field('deviceId','Device ID')}
+        ${field('label','Label')}`;
+
+    case 'trigger':
+      const isCustom = d.triggerType === 'custom';
+      const isThreshold = d.triggerType === 'threshold';
+      const isRange = d.triggerType === 'range' || (!isCustom && !isThreshold);
+      return `<h4>TRIGGER</h4>
+        ${select('triggerType','Type',[['range','Range'],['threshold','Threshold'],['custom','Custom']])}
+        ${isCustom ? field('customCond','Custom condition') : `
+          ${field('signal','Signal name')}
+          <div class="prop-row">
+            <div class="prop-label">Min value</div>
+            <input class="prop-input" data-field="minVal" type="number" step="0.1" value="${d.minVal??0}"/>
+          </div>
+          ${isRange ? `
+          <div class="prop-row">
+            <div class="prop-label">Max value</div>
+            <input class="prop-input" data-field="maxVal" type="number" step="0.1" value="${d.maxVal??0}"/>
+          </div>` : ''}
+        `}
+        ${slider('debounce','Debounce (ms)',0,500,10)}
+        ${slider('cooldown','Cooldown (ms)',0,2000,50)}
+        ${slider('priority','Priority',1,5,1)}
+        <button class="md-btn md-btn-tonal md-btn-sm" onclick="testTrigger('${node.id}')">🔬 TEST</button>`;
+
+    case 'combine':
+      return `<h4>COMBINE (AND)</h4>
+        ${slider('timeWindow','Time window (ms)',0,2000,50)}`;
+
+    case 'showtimer':
+      return `<h4>SHOW TIMER</h4>
+        ${slider('duration','Duration (sec)',5,600,5)}
+        ${select('onStart','On start',[['reset_all','Reset all (IDLE)'],['keep_active','Keep active']])}`;
+
+    case 'accumulator':
+      return `<h4>ACCUMULATOR</h4>
+        ${slider('threshold','Pulse threshold (to 100%)',1,100,1)}
+        ${select('decay','Decay',[['off','Off'],['slow','Slow'],['medium','Medium'],['fast','Fast']])}
+        ${slider('decayRate','Decay rate (%/sec)',0,20,0.5)}
+        ${select('autoReset','Auto reset after climax',[['true','Yes'],['false','No']])}`;
+
+    case 'sequence':
+      return `<h4>SEQUENCE</h4>
+        ${select('device','Device',[['staff','Staff'],['relay','Relay'],['pwm','PWM Lights'],['progressbar','Progress Bar']])}
+        ${field('targetId','Target ID','number')}
+        ${select('policy','Policy',[['INTERRUPT','INTERRUPT'],['QUEUE','QUEUE'],['IGNORE','IGNORE']])}
+        <div class="prop-label" style="margin-top:10px">Timeline Steps</div>
+        <div id="steps-editor"></div>
+        <button class="md-btn md-btn-tonal md-btn-sm" onclick="addStep('${node.id}')" style="margin-top:4px">+ Step</button>`;
+
+    case 'event_node':
+      return `<h4>EVENT</h4>
+        ${select('eventType','Type',[['flash','Flash LED'],['smoke_burst','Smoke burst']])}
+        ${select('device','Device',[['staff','Staff'],['relay','Relay']])}
+        ${field('targetId','Target ID','number')}
+        ${slider('r','Red',0,255)}
+        ${slider('g','Green',0,255)}
+        ${slider('b','Blue',0,255)}
+        ${slider('brightness','Brightness',0,255)}
+        ${slider('durationMs','Duration (ms)',0,5000,100)}`;
+
+    case 'idle':
+      return `<h4>IDLE</h4>
+        ${select('device','Device',[['staff','Staff'],['relay','Relay'],['pwm','PWM Lights'],['progressbar','Progress Bar']])}
+        ${field('targetId','Target ID','number')}
+        ${select('cmd','Idle command',[['LED_OFF','LED Off'],['LED_SOLID','LED Solid'],['PWM_SET','PWM Set']])}
+        ${slider('r','Red',0,255)}
+        ${slider('g','Green',0,255)}
+        ${slider('b','Blue',0,255)}`;
+
+    default: return `<h4>${node.type}</h4>`;
+  }
+}
+
+function renderStepsEditor(node, container) {
+  const steps = node.data.steps || [];
+  container.innerHTML = steps.map((s, i) => `
+    <div class="step-row">
+      <input class="prop-input step-t" type="number" placeholder="t(s)" value="${s.t??0}"
+        onchange="updateStep('${node.id}',${i},'t',+this.value)">
+      <select class="prop-input step-cmd"
+        onchange="updateStep('${node.id}',${i},'cmd',this.value)">
+        ${['LED_SOLID','LED_OFF','LED_SPARKLE','LED_FLAME','LED_RAINBOW','RELAY_ON','RELAY_OFF','PWM_SET','PROGRESS_SET']
+          .map(c=>`<option${s.cmd===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+      <button class="step-del" onclick="deleteStep('${node.id}',${i})">✕</button>
+    </div>`).join('');
+}
+
+function updateStep(nodeId, idx, field, val) {
+  const n = _nodes.find(n=>n.id===nodeId);
+  if (!n) return;
+  n.data.steps[idx][field] = val;
+  refreshNode(nodeId);
+  scheduleAutosave();
+}
+
+function addStep(nodeId) {
+  const n = _nodes.find(n=>n.id===nodeId);
+  if (!n) return;
+  snapshot();
+  const lastT = n.data.steps?.slice(-1)[0]?.t ?? 0;
+  n.data.steps = [...(n.data.steps||[]), {t: lastT+1, cmd:'LED_OFF'}];
+  showProps(n);
+  refreshNode(nodeId);
+  scheduleAutosave();
+}
+
+function deleteStep(nodeId, idx) {
+  const n = _nodes.find(n=>n.id===nodeId);
+  if (!n) return;
+  snapshot();
+  n.data.steps.splice(idx,1);
+  showProps(n);
+  refreshNode(nodeId);
+  scheduleAutosave();
+}
+
+function testTrigger(nodeId) {
+  const n = _nodes.find(n=>n.id===nodeId);
+  if (!n) return;
+  fetch('/api/trigger/test', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({nodeId, data: n.data})})
+    .catch(() => alert('Device not connected — trigger simulated in UI only'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════════
+function validate() {
+  const errors = [];
+  // Frozen nodes are excluded from all checks
+  const activeNodes = _nodes.filter(n => !n.data.frozen);
+  const activeIds   = new Set(activeNodes.map(n => n.id));
+  const activeEdges = _edges.filter(e => activeIds.has(e.srcNode) && activeIds.has(e.dstNode));
+
+  // SENSOR → COMBINE direct: not allowed
+  for (const edge of activeEdges) {
+    const sn = activeNodes.find(n=>n.id===edge.srcNode);
+    const dn = activeNodes.find(n=>n.id===edge.dstNode);
+    if (!sn||!dn) { errors.push('Dangling edge detected'); continue; }
+    if (['sensor_staff','sensor_mic','sensor_pedal'].includes(sn.type) && dn.type==='combine')
+      errors.push(`SENSOR "${sn.data.deviceId}" cannot connect directly to COMBINE — must go through TRIGGER`);
+  }
+
+  // Multiple sources with same priority for the same output device
+  const outMap = {};
+  for (const n of activeNodes) {
+    if (['sequence','event_node'].includes(n.type)) {
+      const key = `${n.data.device}:${n.data.targetId}`;
+      outMap[key] = (outMap[key]||[]).concat(n.id);
+    }
+  }
+  for (const [key, ids] of Object.entries(outMap)) {
+    if (ids.length > 1) {
+      const priorities = ids.map(id => {
+        const edge = activeEdges.find(e => e.dstNode===id);
+        if (!edge) return null;
+        const src = activeNodes.find(n=>n.id===edge.srcNode);
+        return src?.data?.priority ?? null;
+      }).filter(p=>p!==null);
+      const pSet = new Set(priorities);
+      if (pSet.size < priorities.length)
+        errors.push(`Device ${key} has multiple sources with same priority — ambiguous`);
+    }
+  }
+
+  // Payload size check — compile and measure
+  const payload = JSON.stringify(compile());
+  const byteSize = new TextEncoder().encode(payload).length;
+  const MAX_BYTES = 64 * 1024;
+  if (byteSize > MAX_BYTES)
+    errors.push(`Payload too large: ${(byteSize/1024).toFixed(1)} KB (max 64 KB)`);
+
+  if (errors.length === 0) {
+    _valid = true;
+    document.getElementById('btn-ota').disabled = false;
+    const valDiv = document.createElement('div');
+    valDiv.innerHTML = `<div class="val-ok">✔ Validation passed — ${activeNodes.length} nodes, ${(byteSize/1024).toFixed(1)} KB</div>`;
+    document.querySelector('.editor-toolbar').appendChild(valDiv);
+    setTimeout(() => valDiv.remove(), 4000);
+  } else {
+    _valid = false;
+    document.getElementById('btn-ota').disabled = true;
+    alert('Validation errors:\n' + errors.join('\n'));
+  }
+  return errors.length === 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPILER → JSON PAYLOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+function compile() {
+  // Build a Number JSON from the canvas
+  const number = {
+    id:     document.getElementById('num-id').value,
+    name:   document.getElementById('num-name').value,
+    events: [],
+    idle_states: [],
+  };
+
+  // Find all trigger/combine nodes that eventually connect to an action
+  const actionTypes = new Set(['sequence','event_node','showtimer','accumulator']);
+
+  // Simple traversal: find edges → build event chains
+  const actionNodes = _nodes.filter(n => actionTypes.has(n.type));
+  for (const action of actionNodes) {
+    const inEdges = _edges.filter(e => e.dstNode === action.id);
+    if (!inEdges.length) continue;
+    const trigger = _nodes.find(n => n.id === inEdges[0].srcNode);
+    if (!trigger) continue;
+
+    const evObj = {
+      id: action.id,
+      trigger: buildTrigger(trigger),
+      timelines: buildTimelines(action),
+    };
+    number.events.push(evObj);
+  }
+
+  // IDLE nodes
+  const idleNodes = _nodes.filter(n => n.type === 'idle');
+  for (const n of idleNodes) {
+    number.idle_states.push({
+      device:   n.data.device,
+      targetId: parseInt(n.data.targetId)||0xFFFF,
+      cmd:      {cmd: n.data.cmd, r: n.data.r||0, g: n.data.g||0, b: n.data.b||0},
+    });
+  }
+
+  return number;
+}
+
+function buildTrigger(node) {
+  if (!node) return {};
+  const d = node.data;
+  if (['sensor_staff','sensor_mic','sensor_pedal'].includes(node.type)) {
+    const tMap = {sensor_staff:'staff_telemetry', sensor_mic:'mic_telemetry', sensor_pedal:'pedal_event'};
+    return {type: tMap[node.type], condition:'true'};
+  }
+  if (node.type === 'trigger') {
+    const sensorEdge = _edges.find(e => e.dstNode===node.id);
+    const sensorNode = sensorEdge ? _nodes.find(n=>n.id===sensorEdge.srcNode) : null;
+    const sensorType = sensorNode?.type || 'sensor_staff';
+    const trigType = sensorType === 'sensor_pedal' ? 'pedal_event' :
+                     sensorType === 'sensor_mic'   ? 'mic_telemetry' : 'staff_telemetry';
+    const cond = d.triggerType === 'custom'
+      ? d.customCond || 'true'
+      : d.triggerType === 'threshold'
+        ? `${d.signal} > ${d.minVal}`
+        : `${d.minVal} <= ${d.signal} <= ${d.maxVal}`.replace(/<=/g,'<').replace(/ <= /g,' and ');
+    return {type: trigType, condition: cond,
+            debounce: d.debounce, cooldown: d.cooldown, priority: d.priority};
+  }
+  return {type:'staff_telemetry', condition:'true'};
+}
+
+function buildTimelines(node) {
+  if (node.type === 'sequence') {
+    return [{
+      device:   node.data.device,
+      targetId: parseInt(node.data.targetId)||0xFFFF,
+      policy:   node.data.policy||'IGNORE',
+      steps:    node.data.steps||[],
+    }];
+  }
+  if (node.type === 'event_node') {
+    const dur = node.data.durationMs||100;
+    return [{
+      device:   node.data.device,
+      targetId: parseInt(node.data.targetId)||0xFFFF,
+      policy:   'INTERRUPT',
+      steps:    [
+        {t:0, cmd:'LED_SOLID', r:node.data.r||255, g:node.data.g||255, b:node.data.b||255, brightness:node.data.brightness||200},
+        {t:dur/1000, cmd:'LED_OFF'},
+      ],
+    }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SAVE / LOAD / EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+function scheduleAutosave() {
+  clearTimeout(_autosaveTimer);
+  _autosaveTimer = setTimeout(saveNumber, 1000);
+}
+
+async function saveNumber() {
+  const data = compile();
+  const fname = document.getElementById('num-id').value + '.json';
+  try {
+    const r = await fetch('/api/numbers/save', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({data, file: fname})});
+    const j = await r.json();
+    document.getElementById('save-status').textContent = j.ok ? '✓ Saved' : '✗ '+j.error;
+    setTimeout(()=>document.getElementById('save-status').textContent='', 2500);
+  } catch(e) {
+    document.getElementById('save-status').textContent = '✗ Save failed';
+  }
+}
+
+async function loadFromList() {
+  const r = await fetch('/api/numbers/list');
+  const j = await r.json();
+  const sel = document.getElementById('load-select');
+  sel.innerHTML = '<option value="">— קיים —</option>' +
+    j.numbers.map(n=>`<option value="${n.file}">${n.name} (${n.file})</option>`).join('');
+}
+
+async function loadSelected() {
+  const file = document.getElementById('load-select').value;
+  if (!file) return;
+  const r = await fetch(`/api/numbers/get?file=${file}`);
+  const j = await r.json();
+  if (!j.ok) return;
+  snapshot();
+  _nodes=[]; _edges=[]; _nextId=1;
+  // Restore from compiled format — basic reconstruction
+  const data = j.data;
+  document.getElementById('num-name').value = data.name||file;
+  document.getElementById('num-id').value   = data.id||file.replace('.json','');
+  redrawAll();
+  showProps(null);
+}
+
+function exportJSON() {
+  const data = compile();
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.getElementById('num-id').value||'number') + '.json';
+  a.click();
+}
+
+function clearGraph() {
+  if (!confirm('Clear canvas?')) return;
+  snapshot();
+  _nodes=[]; _edges=[];
+  nL.innerHTML=''; eL.innerHTML='';
+  showProps(null);
+  scheduleAutosave();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OTA UPLOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+async function otaUpload() {
+  if (!_valid && !validate()) return;
+  const number = compile();
+  // First save the number
+  await saveNumber();
+  // Then load it on the engine
+  const fname = document.getElementById('num-id').value + '.json';
+  const r = await fetch('/api/number/load', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({path: fname})});
+  const j = await r.json();
+  alert(j.ok ? '✔ Number loaded on Brain' : '✗ Error: ' + j.error);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+loadFromList();
+</script>
+</body>
+</html>

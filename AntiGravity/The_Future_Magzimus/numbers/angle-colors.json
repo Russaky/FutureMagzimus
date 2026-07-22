@@ -1,0 +1,40 @@
+{
+  "id": "angle-colors",
+  "name": "Trigger-Based Staff Angle Colors",
+  "events": [
+    {
+      "id": "evt-green",
+      "trigger": {
+        "type": "staff_telemetry",
+        "condition": "20 <= angle <= 340"
+      },
+      "timelines": [
+        {
+          "device": "staff",
+          "targetId": 65535,
+          "policy": "INTERRUPT",
+          "steps": [
+            { "t": 0.0, "cmd": "LED_SOLID", "r": 0, "g": 255, "b": 0, "brightness": 200 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evt-red",
+      "trigger": {
+        "type": "staff_telemetry",
+        "condition": "angle < 20 or angle > 340"
+      },
+      "timelines": [
+        {
+          "device": "staff",
+          "targetId": 65535,
+          "policy": "INTERRUPT",
+          "steps": [
+            { "t": 0.0, "cmd": "LED_SOLID", "r": 255, "g": 0, "b": 0, "brightness": 200 }
+          ]
+        }
+      ]
+    }
+  ]
+}

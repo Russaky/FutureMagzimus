@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Manager — MAGZIMUS</title>
+<link rel="stylesheet" href="/shared.css">
+<style>
+  body.has-sidebar .page-content { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ─── Bank list panel ─────────────────────────────────────── */
+  .bank-panel {
+    width: 280px; flex-shrink: 0; border-left: 1px solid var(--outline-variant);
+    background: var(--surface); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .bank-panel-header {
+    padding: 14px; border-bottom: 1px solid var(--outline-variant);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .bank-panel-header h3 { margin: 0; font-size: .95rem; font-weight: 600; flex: 1; }
+  #bank-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .bank-item {
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--outline-variant); margin-bottom: 6px;
+    background: var(--surface); transition: all .15s;
+  }
+  .bank-item:hover  { border-color: var(--primary); background: var(--primary-container); }
+  .bank-item.selected { border-color: var(--primary); border-width: 2px; }
+  .bank-item-name { font-size: .87rem; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .bank-item-meta { font-size: .72rem; color: var(--on-surface-variant); margin-top: 4px; }
+  .active-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+  .new-bank-row { padding: 12px; border-top: 1px solid var(--outline-variant); flex-shrink: 0; display: flex; gap: 6px; }
+  .new-bank-row input { flex: 1; }
+
+  /* ─── Main editor area ────────────────────────────────────── */
+  .main-area { flex: 1; overflow-y: auto; padding: 24px 28px; }
+  .empty-hint { color: var(--on-surface-variant); font-size: .9rem; padding: 40px; text-align: center; }
+
+  .bank-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .bank-title-row input.name-input {
+    font-size: 1.3rem; font-weight: 500; border: none; background: transparent;
+    padding: 4px 8px; border-radius: 6px; flex: 1; color: var(--on-surface);
+  }
+  .bank-title-row input.name-input:focus { background: var(--surface-container); outline: 1px solid var(--outline); }
+
+  .trigger-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+  @media (max-width: 900px) { .trigger-grid { grid-template-columns: 1fr; } }
+
+  .trigger-card { display: flex; flex-direction: column; gap: 10px; }
+  .trigger-card-head { display: flex; align-items: center; gap: 8px; }
+  .trigger-icon { font-size: 1.3rem; }
+  .trigger-name { font-weight: 600; font-size: .95rem; flex: 1; }
+  .trigger-priority { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .trigger-priority label { font-size: .72rem; color: var(--on-surface-variant); }
+  .trigger-priority input[type=range] { width: 100px; cursor: pointer; }
+  .priority-val { font-size: 0.72rem; font-weight: bold; min-width: 60px; }
+  .action-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+  .trigger-card-actions { display: flex; gap: 8px; }
+
+  /* ─── Modal ────────────────────────────────────────────────── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(28,27,31,.5);
+    z-index: 1000; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface); border-radius: 16px; padding: 24px;
+    width: 900px; max-width: 94vw; height: 85vh; max-height: 85vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-box h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+  .modal-sub { font-size: .8rem; color: var(--on-surface-variant); margin-bottom: 18px; }
+
+  /* ─── Timeline editor layout (video-editor style) ─────────── */
+  .modal-editor { display: flex; gap: 18px; align-items: flex-start; flex: 1; min-height: 0; overflow: hidden; }
+  .modal-tracks-col { flex: 1; min-width: 0; overflow-y: auto; height: 100%; padding-right: 8px; }
+  .modal-side-panel {
+    width: 260px; flex-shrink: 0; height: 100%; overflow-y: auto;
+    border: 1px solid var(--outline-variant); border-radius: 12px;
+    padding: 14px; background: var(--surface-container);
+  }
+  @media (max-width: 760px) {
+    .modal-editor { flex-direction: column; }
+    .modal-side-panel { width: 100%; position: static; }
+  }
+  .step-panel-empty { font-size: .82rem; color: var(--on-surface-variant); text-align: center; padding: 30px 8px; }
+  .step-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .step-panel-head h3 { font-size: .9rem; font-weight: 600; margin: 0; }
+  .step-panel-params { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .step-panel-params .md-field { margin-bottom: 0; }
+
+  .action-block {
+    border: 1px solid var(--outline-variant); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px; background: var(--surface-container);
+  }
+  .action-block-head { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+  .action-block-head .md-field { margin-bottom: 0; flex: 1; }
+  .icon-btn {
+    border: none; background: transparent; cursor: pointer; font-size: 1rem;
+    color: var(--error); padding: 6px; border-radius: 50%; line-height: 1;
+  }
+  .icon-btn:hover { background: var(--error-container); }
+
+  /* ─── Timeline track (per device block) ───────────────────── */
+  .timeline-track {
+    position: relative; height: 60px; margin: 10px 0 4px;
+    background: var(--surface); border: 1px solid var(--outline-variant);
+    border-radius: 8px; cursor: copy; overflow: visible;
+  }
+  .tl-tick { position: absolute; bottom: 0; width: 1px; height: 8px; background: var(--outline-variant); }
+  .tl-tick span {
+    position: absolute; top: 11px; left: 0; transform: translateX(-50%);
+    font-size: 9px; color: var(--on-surface-variant); white-space: nowrap;
+  }
+  .timeline-cube {
+    position: absolute; top: 6px; transform: translateX(-50%);
+    min-width: 46px; height: 36px; padding: 2px 6px; border-radius: 8px;
+    background: var(--primary); color: var(--on-primary); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3); transition: transform .1s, box-shadow .1s;
+    z-index: 2; line-height: 1.1;
+  }
+  .timeline-cube:hover { transform: translateX(-50%) scale(1.08); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .timeline-cube.selected { outline: 2px solid var(--secondary); outline-offset: 1px; }
+  .timeline-cube.dragging { opacity: .35; }
+  .cube-t { font-size: 9px; font-weight: 600; opacity: .9; }
+  .cube-cmd { font-size: 8px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-empty-hint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; color: var(--on-surface-variant); pointer-events: none;
+  }
+  .timeline-track.drag-over { border-color: var(--primary); background: var(--primary-container); }
+
+  .modal-footer { margin-top: 16px; display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--on-surface); color: var(--surface); padding: 10px 20px;
+    border-radius: 100px; font-size: .85rem; opacity: 0; pointer-events: none;
+    transition: opacity .2s; z-index: 2000;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="page-content">
+
+  <!-- ─── Bank list ─── -->
+  <div class="bank-panel">
+    <div class="bank-panel-header">
+      <h3>Banks</h3>
+    </div>
+    <div id="bank-list"></div>
+    <div class="new-bank-row">
+      <input class="md-input" id="new-bank-name" placeholder="שם Bank חדש…" maxlength="60">
+      <button class="md-btn md-btn-filled md-btn-sm" onclick="createBank()">+</button>
+    </div>
+  </div>
+
+  <!-- ─── Editor ─── -->
+  <div class="main-area">
+    <div id="empty-state" class="empty-hint">בחר Bank מהרשימה או צור חדש כדי להתחיל.</div>
+
+    <div id="editor-state" style="display:none">
+      <div class="page-header">
+        <div class="bank-title-row">
+          <input class="name-input" id="bank-name-input" onchange="renameBank()">
+          <button class="md-btn md-btn-sm" id="active-btn" onclick="toggleActive()"></button>
+          <button class="md-btn md-btn-error md-btn-sm" onclick="deleteBank()">מחק Bank</button>
+        </div>
+        <div class="page-subtitle">מיפוי בין 6 טריגרי התנועה הקבועים של הסטאף לפעולות רשת.</div>
+        <div class="page-subtitle" style="margin-top: 8px; color: var(--on-surface);">
+          <b>מקרא עדיפויות (Priority):</b> מס' 1 = העדיפות הגבוהה ביותר (קוטע הכל). מס' 6 = העדיפות הנמוכה ביותר.
+        </div>
+      </div>
+
+      <div class="trigger-grid" id="trigger-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Action editor modal ─── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <h2 id="modal-title"></h2>
+    <div class="modal-sub">כל בלוק שולט במכשיר אחד. לחיצה על ציר הזמן מוסיפה שלב, לחיצה על קובייה עורכת אותו בחלונית הצד, וניתן לגרור קובייה לאורך הציר כדי לשנות את התזמון שלה.</div>
+    <div class="modal-editor">
+      <div class="modal-tracks-col">
+        <div id="modal-blocks"></div>
+        <button class="md-btn md-btn-tonal md-btn-sm" onclick="addBlock()">+ הוסף מכשיר לפעולה</button>
+      </div>
+      <div class="modal-side-panel" id="step-panel">
+        <div class="step-panel-empty">בחר קובייה בציר הזמן כדי לערוך פרמטרים</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="md-btn md-btn-outline" onclick="closeModal()">ביטול</button>
+      <button class="md-btn md-btn-filled" onclick="saveModal()">שמור פעולה</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/nav.js"></script>
+<script>
+const TRIGGER_LABELS = {
+  fast_spin:         { icon: '🌀', label: 'Fast Spin' },
+  toss:               { icon: '🤾', label: 'Toss' },
+  roll:               { icon: '🎳', label: 'Roll' },
+  catch:              { icon: '🤲', label: 'Catch' },
+  static_horizontal:  { icon: '➖', label: 'Static Horizontal' },
+  static_vertical:    { icon: '➕', label: 'Static Vertical' },
+};
+
+const DEVICES = {
+  staff:       { label: 'Staff LEDs',   cmds: {
+    LED_SOLID:   { label: 'Solid Color',  params: ['r','g','b','brightness'] },
+    LED_OFF:     { label: 'Off',          params: [] },
+    LED_SPARKLE: { label: 'Sparkle',      params: ['r','g','b','density'] },
+    LED_FLAME:   { label: 'Flame',        params: [] },
+    LED_RAINBOW: { label: 'Rainbow',      params: [] },
+    LED_VERTICAL:{ label: 'Angle→Color (auto)', params: [] },
+    EFFECT:      { label: '📚 Saved Effect (Effects Lab)', params: ['effectId'] },
+  }},
+  relay:       { label: 'Smoke Relay',  cmds: {
+    RELAY_ON:  { label: 'ON',  params: ['durationMs'] },
+    RELAY_OFF: { label: 'OFF', params: [] },
+  }},
+  pwm:         { label: 'WRGB Lights',  cmds: {
+    PWM_SET: { label: 'Set Color', params: ['w','r','g','b','fadeMs'] },
+    EFFECT:  { label: '📚 Saved Effect (Effects Lab)', params: ['effectId'] },
+  }},
+  progressbar: { label: 'Progress Bar', cmds: {
+    PROGRESS_SET: { label: 'Set State', params: ['mode','value','r','g','b','fadeMs'] },
+    EFFECT:       { label: '📚 Saved Effect (Effects Lab)', params: ['effectId'] },
+  }},
+  dmx:         { label: 'DMX Fixture',  cmds: {
+    DMX_SET: { label: 'Set Color', params: ['w','r','g','b'] },
+    EFFECT:  { label: '📚 Saved Effect (Effects Lab)', params: ['effectId'] },
+  }},
+};
+
+const PARAM_META = {
+  r: { label: 'R', type: 'number', min: 0, max: 255, def: 0 },
+  g: { label: 'G', type: 'number', min: 0, max: 255, def: 0 },
+  b: { label: 'B', type: 'number', min: 0, max: 255, def: 0 },
+  w: { label: 'W', type: 'number', min: 0, max: 255, def: 0 },
+  brightness: { label: 'Brightness', type: 'number', min: 0, max: 255, def: 150 },
+  density:    { label: 'Density',    type: 'number', min: 0, max: 255, def: 128 },
+  durationMs: { label: 'Duration (ms)', type: 'number', min: 0, max: 60000, def: 1000 },
+  fadeMs:     { label: 'Fade (ms)',     type: 'number', min: 0, max: 10000, def: 0 },
+  mode:       { label: 'Mode', type: 'select', options: [[0,'Progress'],[1,'Solid']], def: 0 },
+  value:      { label: 'Value (0-100)', type: 'number', min: 0, max: 100, def: 0 },
+  effectId:   { label: 'Effect', type: 'effect-select', def: '' },
+};
+
+let banks = [];
+let activeId = null;
+let selectedBankId = null;
+let modalTrigger = null;
+let modalBlocks = [];
+let networkDevices = [];
+let fxLibrary = []; // saved Effects Lab presets — see /api/fx
+let selected = null; // { bi, si } — step cube currently open in the side panel
+
+function toast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? 'var(--error)' : 'var(--on-surface)';
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function updatePriorityVisual(key, val) {
+  const num = parseInt(val);
+  const span = document.getElementById('pval-' + key);
+  const input = document.getElementById('priority-' + key);
+  if (!span || !input) return;
+  
+  // 1 is High (red/hot), 6 is Low (gray/cold). 
+  // Let's use accent-color with changing saturation and lightness.
+  // Hue 0 (Red), Saturation drops from 100% to 0%
+  const sat = 100 - ((num - 1) * 20); // 1->100%, 6->0%
+  input.style.accentColor = `hsl(0, ${sat}%, 50%)`;
+  
+  let text = 'בינונית';
+  if (num === 1) text = 'גבוהה מאוד';
+  else if (num === 2) text = 'גבוהה';
+  else if (num === 5) text = 'נמוכה';
+  else if (num === 6) text = 'נמוכה מאוד';
+  span.textContent = text;
+  span.style.color = `hsl(0, ${sat}%, 65%)`;
+}
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const data = await r.json().catch(() => ({ ok: false, error: 'bad response' }));
+  if (!data.ok) throw new Error(data.error || 'request failed');
+  return data;
+}
+
+async function loadBanks() {
+  try {
+    const data = await api('/api/banks');
+    banks = data.banks;
+    activeId = data.activeId;
+    renderBankList();
+    if (selectedBankId && !banks.find(b => b.id === selectedBankId)) selectedBankId = null;
+    if (selectedBankId) renderEditor();
+  } catch (e) {
+    toast('שגיאה בטעינת Banks: ' + e.message, true);
+  }
+}
+
+async function loadFxLibrary() {
+  try {
+    const data = await api('/api/fx');
+    fxLibrary = data.effects || [];
+  } catch (e) {
+    console.error('Failed to load effects library', e);
+  }
+}
+
+async function loadDevices() {
+  try {
+    const data = await api('/api/network/devices');
+    networkDevices = data.devices || [];
+    if (document.getElementById('modal-overlay').classList.contains('open')) {
+      // Don't re-render entire modal and lose focus, just update selects if possible.
+      // But for simplicity, we'll re-render if it doesn't cause too much flicker.
+      // Actually, better not to auto-re-render modal while user is editing.
+    }
+  } catch (e) {
+    console.error('Failed to load network devices', e);
+  }
+}
+
+function renderBankList() {
+  const el = document.getElementById('bank-list');
+  if (!banks.length) {
+    el.innerHTML = '<div class="empty-hint" style="padding:16px">אין Banks עדיין.</div>';
+    return;
+  }
+  el.innerHTML = banks.map(b => {
+    const mapped = Object.values(b.mappings || {}).filter(v => v && v.length).length;
+    return `<div class="bank-item${b.id === selectedBankId ? ' selected' : ''}" onclick="selectBank('${b.id}')">
+      <div class="bank-item-name">${b.id === activeId ? '<span class="active-dot" title="Active"></span>' : ''}${escapeHtml(b.name)}</div>
+      <div class="bank-item-meta">${mapped}/6 טריגרים ממופים</div>
+    </div>`;
+  }).join('');
+}
+
+function selectBank(id) {
+  selectedBankId = id;
+  renderBankList();
+  renderEditor();
+}
+
+function currentBank() {
+  return banks.find(b => b.id === selectedBankId) || null;
+}
+
+function renderEditor() {
+  const bank = currentBank();
+  document.getElementById('empty-state').style.display = bank ? 'none' : 'block';
+  document.getElementById('editor-state').style.display = bank ? 'block' : 'none';
+  if (!bank) return;
+
+  const nameInput = document.getElementById('bank-name-input');
+  if (document.activeElement !== nameInput) nameInput.value = bank.name;
+  const activeBtn = document.getElementById('active-btn');
+  const isActive = bank.id === activeId;
+  activeBtn.textContent = isActive ? '✓ Bank פעיל' : 'הפוך לפעיל';
+  activeBtn.className = 'md-btn md-btn-sm ' + (isActive ? 'md-btn-success' : 'md-btn-tonal');
+
+  const grid = document.getElementById('trigger-grid');
+  grid.innerHTML = Object.keys(TRIGGER_LABELS).map(key => {
+    const meta = TRIGGER_LABELS[key];
+    const timelines = bank.mappings ? bank.mappings[key] : null;
+    const priority = (bank.priorities && bank.priorities[key] !== undefined) ? bank.priorities[key] : '';
+    const chips = (timelines || []).map(tl =>
+      `<span class="md-chip primary">${DEVICES[tl.device] ? DEVICES[tl.device].label : tl.device}</span>`
+    ).join('') || '<span class="md-chip">לא הוגדרה פעולה</span>';
+    return `<div class="md-card trigger-card">
+      <div class="trigger-card-head">
+        <span class="trigger-icon">${meta.icon}</span>
+        <span class="trigger-name">${meta.label}</span>
+        <span class="trigger-priority">
+          <label for="priority-${key}">עדיפות</label>
+          <input type="range" min="1" max="6" id="priority-${key}" value="${priority}"
+                 onchange="updatePriority('${key}', this.value)" 
+                 oninput="updatePriorityVisual('${key}', this.value)"
+                 title="עדיפות הטריגר (גבוהה דורסת נמוכה)">
+          <span class="priority-val" id="pval-${key}"></span>
+        </span>
+      </div>
+      <div class="action-chips">${chips}</div>
+      <div class="trigger-card-actions">
+        <button class="md-btn md-btn-tonal md-btn-sm" onclick="openModal('${key}')">ערוך פעולה</button>
+        <button class="md-btn md-btn-outline md-btn-sm" onclick="clearTrigger('${key}')" ${(timelines||[]).length ? '' : 'disabled'}>נקה</button>
+      </div>
+    </div>`;
+  }).join('');
+  
+  // Initialize visuals for sliders
+  Object.keys(TRIGGER_LABELS).forEach(key => {
+    const p = bank.priorities && bank.priorities[key] !== undefined ? bank.priorities[key] : 1;
+    updatePriorityVisual(key, p);
+  });
+}
+
+async function createBank() {
+  const input = document.getElementById('new-bank-name');
+  const name = input.value.trim();
+  if (!name) { toast('נא להזין שם', true); return; }
+  try {
+    const data = await api('/api/banks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    input.value = '';
+    await loadBanks();
+    selectBank(data.bank.id);
+    toast('Bank נוצר');
+  } catch (e) {
+    toast('שגיאה: ' + e.message, true);
+  }
+}
+
+async function renameBank() {
+  const bank = currentBank();
+  const name = document.getElementById('bank-name-input').value.trim();
+  if (!bank || !name || name === bank.name) return;
+  try {
+    await api(`/api/banks/${bank.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    await loadBanks();
+  } catch (e) {
+    toast('שגיאה בשינוי שם: ' + e.message, true);
+  }
+}
+
+async function deleteBank() {
+  const bank = currentBank();
+  if (!bank) return;
+  if (!confirm(`למחוק את "${bank.name}"?`)) return;
+  try {
+    await api(`/api/banks/${bank.id}`, { method: 'DELETE' });
+    selectedBankId = null;
+    await loadBanks();
+    toast('Bank נמחק');
+  } catch (e) {
+    toast('שגיאה במחיקה: ' + e.message, true);
+  }
+}
+
+async function toggleActive() {
+  const bank = currentBank();
+  if (!bank) return;
+  try {
+    if (bank.id === activeId) {
+      await api('/api/banks/active', { method: 'DELETE' });
+      toast('Bank בוטל כפעיל');
+    } else {
+      await api(`/api/banks/${bank.id}/activate`, { method: 'POST' });
+      toast('Bank הוגדר כפעיל');
+    }
+    await loadBanks();
+  } catch (e) {
+    toast('שגיאה: ' + e.message, true);
+  }
+}
+
+async function clearTrigger(key) {
+  const bank = currentBank();
+  if (!bank) return;
+  try {
+    await api(`/api/banks/${bank.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mappings: { [key]: null } }),
+    });
+    await loadBanks();
+    toast('הפעולה נוקתה');
+  } catch (e) {
+    toast('שגיאה: ' + e.message, true);
+  }
+}
+
+async function updatePriority(key, value) {
+  const bank = currentBank();
+  if (!bank) return;
+  const priority = parseInt(value);
+  if (Number.isNaN(priority)) { toast('עדיפות חייבת להיות מספר', true); renderEditor(); return; }
+  try {
+    await api(`/api/banks/${bank.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priorities: { [key]: priority } }),
+    });
+    await loadBanks();
+    toast('עדיפות עודכנה');
+  } catch (e) {
+    toast('שגיאה בעדכון עדיפות: ' + e.message, true);
+    renderEditor();
+  }
+}
+
+/* ─── Action modal ─────────────────────────────────────────── */
+
+function openModal(key) {
+  const bank = currentBank();
+  if (!bank) return;
+  modalTrigger = key;
+  const existing = (bank.mappings && bank.mappings[key]) || [];
+  modalBlocks = JSON.parse(JSON.stringify(existing));
+  selected = null;
+  if (!modalBlocks.length) addBlock();
+  document.getElementById('modal-title').textContent =
+    `פעולה עבור: ${TRIGGER_LABELS[key].icon} ${TRIGGER_LABELS[key].label}`;
+
+  // Reload devices + effects library right before opening modal to ensure it's up to date
+  Promise.all([loadDevices(), loadFxLibrary()]).then(() => {
+    renderModal();
+    document.getElementById('modal-overlay').classList.add('open');
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalTrigger = null;
+  modalBlocks = [];
+  selected = null;
+}
+
+function addBlock() {
+  modalBlocks.push({ device: 'staff', targetId: 65535, policy: 'INTERRUPT',
+                      steps: [{ t: 0, cmd: 'LED_SOLID', r: 255, g: 0, b: 0, brightness: 150 }] });
+  selected = { bi: modalBlocks.length - 1, si: 0 };
+  renderModal();
+}
+
+function removeBlock(i) {
+  modalBlocks.splice(i, 1);
+  selected = null;
+  renderModal();
+}
+
+function firstCmdFor(device) {
+  return Object.keys(DEVICES[device].cmds)[0];
+}
+
+function getMaxT(block) {
+  return Math.max(5, ...block.steps.map(s => s.t + 2));
+}
+
+function addStep(bi) {
+  const device = modalBlocks[bi].device;
+  const cmd = firstCmdFor(device);
+  const steps = modalBlocks[bi].steps;
+  const t = steps.length ? Math.max(...steps.map(s => s.t)) + 1 : 0;
+  const step = { t, cmd };
+  DEVICES[device].cmds[cmd].params.forEach(p => step[p] = PARAM_META[p].def);
+  steps.push(step);
+  selected = { bi, si: steps.length - 1 };
+  renderModal();
+}
+
+function removeStep(bi, si) {
+  modalBlocks[bi].steps.splice(si, 1);
+  if (selected && selected.bi === bi) selected = null;
+  renderModal();
+}
+
+function selectStep(bi, si) {
+  selected = { bi, si };
+  renderModal();
+}
+
+function onBlockDeviceChange(bi, device) {
+  modalBlocks[bi].device = device;
+  const cmd = firstCmdFor(device);
+  modalBlocks[bi].steps = [{ t: 0, cmd, ...Object.fromEntries(
+    DEVICES[device].cmds[cmd].params.map(p => [p, PARAM_META[p].def])) }];
+  if (selected && selected.bi === bi) selected = { bi, si: 0 };
+  renderModal();
+}
+
+function onStepCmdChange(bi, si, cmd) {
+  const device = modalBlocks[bi].device;
+  const step = { t: modalBlocks[bi].steps[si].t, cmd };
+  DEVICES[device].cmds[cmd].params.forEach(p => step[p] = PARAM_META[p].def);
+  modalBlocks[bi].steps[si] = step;
+  renderModal();
+}
+
+function updateBlockField(bi, field, value) {
+  modalBlocks[bi][field] = field === 'targetId' ? (parseInt(value) || 0) : value;
+}
+
+function updateStepField(bi, si, field, value, isParam) {
+  const block = modalBlocks[bi];
+  const step = block.steps[si];
+  if (field === 't') {
+    step.t = Math.max(0, parseFloat(value) || 0);
+    block.steps.sort((a, b) => a.t - b.t);
+    if (selected && selected.bi === bi) selected.si = block.steps.indexOf(step);
+  } else if (isParam && PARAM_META[field].type === 'number') {
+    step[field] = parseInt(value) || 0;
+  } else {
+    step[field] = isParam ? parseInt(value) : value;
+  }
+  renderModal();
+}
+
+// ─── Drag & Drop reordering of cubes along a track ───────────
+let dragState = null; // { bi, si }
+
+function cubeDragStart(ev, bi, si) {
+  dragState = { bi, si };
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', `${bi}:${si}`);
+  ev.currentTarget.classList.add('dragging');
+}
+
+function cubeDragEnd(ev) {
+  ev.currentTarget.classList.remove('dragging');
+  dragState = null;
+}
+
+function trackDragOver(bi, ev) {
+  if (!dragState || dragState.bi !== bi) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('drag-over');
+}
+
+function trackDragLeave(ev) {
+  ev.currentTarget.classList.remove('drag-over');
+}
+
+function trackDrop(bi, ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  if (!dragState || dragState.bi !== bi) { dragState = null; return; }
+  const block = modalBlocks[bi];
+  const step = block.steps[dragState.si];
+  const rect = ev.currentTarget.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+  const maxT = getMaxT(block);
+  step.t = Math.round(ratio * maxT * 10) / 10;
+  block.steps.sort((a, b) => a.t - b.t);
+  selected = { bi, si: block.steps.indexOf(step) };
+  dragState = null;
+  renderModal();
+}
+
+// Click on empty timeline track area → add a new step at that time position.
+function trackClick(bi, ev) {
+  const block = modalBlocks[bi];
+  const rect = ev.currentTarget.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+  const maxT = getMaxT(block);
+  const t = Math.round(ratio * maxT * 10) / 10;
+  const device = block.device;
+  const cmd = firstCmdFor(device);
+  const step = { t, cmd };
+  DEVICES[device].cmds[cmd].params.forEach(p => step[p] = PARAM_META[p].def);
+  block.steps.push(step);
+  block.steps.sort((a, b) => a.t - b.t);
+  selected = { bi, si: block.steps.indexOf(step) };
+  renderModal();
+}
+
+function renderModal() {
+  const el = document.getElementById('modal-blocks');
+  el.innerHTML = modalBlocks.map((block, bi) => {
+    const deviceOpts = Object.keys(DEVICES).map(d =>
+      `<option value="${d}" ${d === block.device ? 'selected' : ''}>${DEVICES[d].label}</option>`).join('');
+    const policyOpts = ['INTERRUPT', 'QUEUE', 'IGNORE'].map(p =>
+      `<option value="${p}" ${p === block.policy ? 'selected' : ''}>${p}</option>`).join('');
+
+    const maxT = getMaxT(block);
+    const tickStep = maxT <= 10 ? 1 : Math.ceil(maxT / 10);
+    let ticks = '';
+    for (let t = 0; t <= maxT; t += tickStep) {
+      ticks += `<div class="tl-tick" style="left:${(t / maxT * 100).toFixed(2)}%"><span>${t}s</span></div>`;
+    }
+
+    const cubesHtml = block.steps.map((step, si) => {
+      const isSel = selected && selected.bi === bi && selected.si === si;
+      const pct = (step.t / maxT * 100).toFixed(2);
+      const cmdMeta = DEVICES[block.device].cmds[step.cmd];
+      const cmdLabel = cmdMeta ? cmdMeta.label : step.cmd;
+      return `<div class="timeline-cube${isSel ? ' selected' : ''}" style="left:${pct}%"
+                   title="${escapeHtml(cmdLabel)} @ t=${step.t}s"
+                   draggable="true"
+                   ondragstart="cubeDragStart(event,${bi},${si})"
+                   ondragend="cubeDragEnd(event)"
+                   onclick="event.stopPropagation(); selectStep(${bi},${si})">
+        <div class="cube-t">${step.t}s</div>
+        <div class="cube-cmd">${escapeHtml(cmdLabel)}</div>
+      </div>`;
+    }).join('');
+
+    const emptyHint = !block.steps.length
+      ? '<div class="tl-empty-hint">לחץ על הציר להוספת שלב</div>' : '';
+
+    const matchingDevs = networkDevices.filter(d => (d.role || '').toLowerCase() === block.device);
+    let targetOpts = `<option value="0" ${block.targetId === 0 ? 'selected' : ''}>0 - הכל (Broadcast)</option>`;
+    matchingDevs.forEach(d => {
+      targetOpts += `<option value="${d.id}" ${block.targetId === d.id ? 'selected' : ''}>${d.id} ${!d.online ? '(לא מחובר)' : ''}</option>`;
+    });
+    // If the current targetId isn't 0 and isn't in the list, still show it so it isn't lost
+    if (block.targetId !== 0 && !matchingDevs.find(d => d.id === block.targetId)) {
+      targetOpts += `<option value="${block.targetId}" selected>${block.targetId} (לא ברשת)</option>`;
+    }
+
+    return `<div class="action-block">
+      <div class="action-block-head">
+        <div class="md-field">
+          <label class="md-label">מכשיר</label>
+          <select class="md-select" onchange="onBlockDeviceChange(${bi}, this.value)">${deviceOpts}</select>
+        </div>
+        <div class="md-field">
+          <label class="md-label">Target ID</label>
+          <select class="md-select" onchange="updateBlockField(${bi},'targetId',this.value)">${targetOpts}</select>
+        </div>
+        <div class="md-field">
+          <label class="md-label">Policy</label>
+          <select class="md-select" onchange="updateBlockField(${bi},'policy',this.value)">${policyOpts}</select>
+        </div>
+        <button class="icon-btn" title="הסר מכשיר" onclick="removeBlock(${bi})">🗑</button>
+      </div>
+      <div class="timeline-track" onclick="trackClick(${bi}, event)"
+           ondragover="trackDragOver(${bi}, event)" ondragleave="trackDragLeave(event)"
+           ondrop="trackDrop(${bi}, event)">
+        ${ticks}
+        ${cubesHtml}
+        ${emptyHint}
+      </div>
+      <button class="md-btn md-btn-outline md-btn-sm" onclick="addStep(${bi})">+ הוסף שלב</button>
+    </div>`;
+  }).join('') || '<div class="empty-hint">אין מכשירים בפעולה — הוסף אחד.</div>';
+
+  renderStepPanel();
+}
+
+function renderStepPanel() {
+  const panel = document.getElementById('step-panel');
+  const block = selected && modalBlocks[selected.bi];
+  const step = block && block.steps[selected.si];
+  if (!step) {
+    panel.innerHTML = '<div class="step-panel-empty">בחר קובייה בציר הזמן כדי לערוך פרמטרים</div>';
+    return;
+  }
+  const { bi, si } = selected;
+  const cmds = DEVICES[block.device].cmds;
+  const cmdOpts = Object.keys(cmds).map(c =>
+    `<option value="${c}" ${c === step.cmd ? 'selected' : ''}>${cmds[c].label}</option>`).join('');
+
+  const paramsHtml = cmds[step.cmd].params.map(p => {
+    const meta = PARAM_META[p];
+    if (meta.type === 'effect-select') {
+      const options = fxLibrary.filter(e => e.deviceType === block.device);
+      const opts = options.length
+        ? options.map(e => `<option value="${e.id}" ${e.id === step[p] ? 'selected' : ''}>${escapeHtml(e.name)}</option>`).join('')
+        : '';
+      return `<div class="md-field">
+        <label class="md-label">${meta.label}</label>
+        <select class="md-select" onchange="updateStepField(${bi},${si},'${p}',this.value,false)">
+          <option value="">— בחר אפקט —</option>${opts}
+        </select>
+        ${!options.length ? `<div class="led-info" style="margin-top:4px">אין אפקטים שמורים ל-${DEVICES[block.device].label}. צור אחד ב-Effects Lab.</div>` : ''}
+      </div>`;
+    }
+    if (meta.type === 'select') {
+      const opts = meta.options.map(([v, l]) =>
+        `<option value="${v}" ${v === step[p] ? 'selected' : ''}>${l}</option>`).join('');
+      return `<div class="md-field">
+        <label class="md-label">${meta.label}</label>
+        <select class="md-select" onchange="updateStepField(${bi},${si},'${p}',this.value,true)">${opts}</select>
+      </div>`;
+    }
+    return `<div class="md-field">
+      <label class="md-label">${meta.label}</label>
+      <input class="md-input" type="number" min="${meta.min}" max="${meta.max}" value="${step[p] ?? meta.def}"
+             onchange="updateStepField(${bi},${si},'${p}',this.value,true)">
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="step-panel-head">
+      <h3>עריכת שלב</h3>
+      <button class="icon-btn" title="הסר שלב" onclick="removeStep(${bi},${si})">✕</button>
+    </div>
+    <div class="md-field">
+      <label class="md-label">t (שניות)</label>
+      <input class="md-input" type="number" step="0.1" min="0" value="${step.t}"
+             onchange="updateStepField(${bi},${si},'t',this.value,false)">
+    </div>
+    <div class="md-field">
+      <label class="md-label">פקודה</label>
+      <select class="md-select" onchange="onStepCmdChange(${bi},${si},this.value)">${cmdOpts}</select>
+    </div>
+    <div class="step-panel-params">${paramsHtml}</div>
+  `;
+}
+
+async function saveModal() {
+  const bank = currentBank();
+  if (!bank || !modalTrigger) return;
+  try {
+    await api(`/api/banks/${bank.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mappings: { [modalTrigger]: modalBlocks } }),
+    });
+    closeModal();
+    await loadBanks();
+    toast('הפעולה נשמרה');
+  } catch (e) {
+    toast('שגיאה בשמירה: ' + e.message, true);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+loadBanks();
+loadDevices();
+loadFxLibrary();
+setInterval(loadBanks, 5000);
+setInterval(loadDevices, 5000);
+</script>
+</body>
+</html>

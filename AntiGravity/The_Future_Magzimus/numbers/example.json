@@ -1,42 +1,5 @@
 {
   "id": "staff-rotation-demo",
-  "name": "Staff Rotation Demo",
-  "events": [
-    {
-      "id": "evt-spin",
-      "trigger": {
-        "type": "staff_telemetry",
-        "condition": "speed > 2.0"
-      },
-      "timelines": [
-        {
-          "device": "staff",
-          "targetId": 65535,
-          "policy": "INTERRUPT",
-          "steps": [
-            { "t": 0.0, "cmd": "LED_SOLID", "r": 255, "g": 0,   "b": 0,   "brightness": 200 },
-            { "t": 1.2, "cmd": "LED_SOLID", "r": 0,   "g": 0,   "b": 255, "brightness": 255 },
-            { "t": 2.0, "cmd": "LED_OFF" }
-          ]
-        },
-        {
-          "device": "relay",
-          "targetId": 255,
-          "policy": "IGNORE",
-          "steps": [
-            { "t": 0.0, "cmd": "RELAY_ON", "durationMs": 1500 }
-          ]
-        },
-        {
-          "device": "pwm",
-          "targetId": 255,
-          "policy": "QUEUE",
-          "steps": [
-            { "t": 0.0, "cmd": "PWM_SET", "w": 200, "r": 0, "g": 0, "b": 0, "fadeMs": 500 },
-            { "t": 2.0, "cmd": "PWM_SET", "w": 0,   "r": 0, "g": 0, "b": 0, "fadeMs": 1000 }
-          ]
-        }
-      ]
-    }
-  ]
+  "name": "Staff Rotation Demo (disabled)",
+  "events": []
 }

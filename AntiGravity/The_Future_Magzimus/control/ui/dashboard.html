@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Dashboard — MAGZIMUS</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg-1: #0a0e17; --bg-2: #10152280;
+      --glass: rgba(255,255,255,0.06); --glass-border: rgba(255,255,255,0.12);
+      --text: #e8ecf4; --text-dim: #8892a6;
+      --accent: #7c9cff; --ok: #3ddc84; --warn: #ffb454; --err: #ff5c7a;
+      --sidebar-w: 76px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, #1c2440 0%, transparent 45%),
+        radial-gradient(circle at 85% 90%, #241a3a 0%, transparent 50%),
+        var(--bg-1);
+      padding: 24px 24px 24px calc(var(--sidebar-w) + 24px);
+    }
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    }
+    /* sidebar dark override (shared.css not required — nav.js builds its own DOM) */
+    .sidebar { background: rgba(10,14,23,0.85); border-right: 1px solid var(--glass-border);
+               backdrop-filter: blur(12px); position: fixed; left:0; top:0; bottom:0;
+               width: var(--sidebar-w); display:flex; flex-direction:column; align-items:center;
+               padding: 10px 0 16px; z-index: 100; gap:4px; }
+    .sidebar-logo { font-size:0.5rem; font-weight:700; color: var(--accent); letter-spacing:1.5px;
+                    text-align:center; padding:4px 2px 10px; border-bottom:1px solid var(--glass-border);
+                    width:100%; margin-bottom:6px; }
+    .nav-item { display:flex; flex-direction:column; align-items:center; padding:6px 4px;
+                border-radius:16px; width:60px; text-decoration:none; color: var(--text-dim);
+                transition: background .15s; cursor:pointer; }
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .nav-item.active { background: rgba(124,156,255,0.18); color: var(--accent); }
+    .nav-icon { font-size:1.25rem; line-height:1.4; }
+    .nav-label { font-size:0.55rem; font-weight:600; text-align:center; letter-spacing:.3px; }
+
+    .page-header { margin-bottom: 24px; display: flex; align-items: baseline; gap: 12px; }
+    .page-title { font-size: 1.4rem; font-weight: 600; letter-spacing: 1px; }
+    .page-subtitle { font-size: 0.85rem; color: var(--text-dim); }
+
+    .summary-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .summary-chip { padding: 10px 18px; border-radius: 12px; font-size: 0.8rem; }
+    .summary-chip b { font-size: 1.1rem; display: block; }
+
+    .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+
+    .panel { padding: 20px; }
+    .panel-title { font-size: 0.8rem; font-weight: 600; color: var(--text-dim);
+                   text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px;
+                   display: flex; justify-content: space-between; align-items: center; }
+
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+    .device-card { border-radius: 12px; padding: 14px; background: rgba(255,255,255,0.03);
+                   border: 1px solid var(--glass-border); position: relative; overflow: hidden; }
+    .device-card.online { border-color: rgba(61,220,132,0.35); }
+    .device-card.offline { opacity: 0.55; }
+    .device-id { font-family: 'Courier New', monospace; font-size: 1rem; font-weight: 700; }
+    .device-role { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+    .device-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+    .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+                  background: var(--err); margin-left: 8px; vertical-align: middle; }
+    .status-dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 0.85rem; }
+
+    .console { background: #04060c; border-radius: 12px; padding: 12px;
+               font-family: 'Courier New', monospace; font-size: 0.72rem;
+               height: 480px; overflow-y: auto; line-height: 1.7; }
+    .console-line { white-space: pre-wrap; word-break: break-word; }
+    .console-line .ts { color: #4a5570; }
+    .console-line .tx { color: var(--accent); font-weight: 700; }
+    .console-line .rx { color: var(--ok); font-weight: 700; }
+    .console-line .dev { color: #ffd479; }
+    .console-line .detail { color: var(--text-dim); }
+
+    .clear-btn { background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border);
+                 color: var(--text); padding: 4px 12px; border-radius: 8px; font-size: 0.7rem;
+                 cursor: pointer; }
+    .clear-btn:hover { background: rgba(255,255,255,0.15); }
+
+    /* Enhanced Device Card Styling */
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .device-card { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 220px; }
+    .device-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-divider { border-bottom: 1px solid var(--glass-border); margin: 6px 0; }
+    
+    .state-section { margin-top: 4px; }
+    .state-row { font-size: 0.75rem; line-height: 1.5; color: var(--text); margin-bottom: 3px; }
+    .state-title { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
+    
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; }
+    .badge.throw { background: rgba(255, 92, 122, 0.2); color: var(--err); border: 1px solid rgba(255, 92, 122, 0.4); }
+    .badge.catch { background: rgba(61, 220, 132, 0.2); color: var(--ok); border: 1px solid rgba(61, 220, 132, 0.4); }
+    .badge.impact { background: rgba(255, 180, 84, 0.2); color: var(--warn); border: 1px solid rgba(255, 180, 84, 0.4); }
+    .badge.pedal { background: rgba(124, 156, 255, 0.2); color: var(--accent); border: 1px solid rgba(124, 156, 255, 0.4); }
+    .badge.relay-on { background: rgba(61, 220, 132, 0.25); color: var(--ok); border: 1px solid var(--ok); animation: glow 1s infinite alternate; }
+    .badge.relay-off { background: rgba(255, 255, 255, 0.05); color: var(--text-dim); border: 1px solid var(--glass-border); }
+    @keyframes glow { from { box-shadow: 0 0 2px var(--ok); } to { box-shadow: 0 0 8px var(--ok); } }
+    
+    .tx-rx-section { font-size: 0.68rem; line-height: 1.4; color: var(--text-dim); }
+    .tx-rx-info { margin-bottom: 2px; }
+    .tx-rx-info b { color: var(--text-dim); font-weight: 500; }
+    .tx-rx-info .cmd { font-family: monospace; color: #ffd479; font-weight: 600; }
+    .tx-rx-info .detail { font-family: monospace; color: var(--text-dim); }
+    .tx-rx-info .ago { color: #5a6580; margin-right: 4px; }
+    
+    .control-source { font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; background: rgba(124, 156, 255, 0.08); padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(124, 156, 255, 0.15); }
+    .control-source.standalone { color: var(--warn); background: rgba(255, 180, 84, 0.08); border-color: rgba(255, 180, 84, 0.15); }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-header">
+    <span class="page-title">Network Dashboard</span>
+    <span class="page-subtitle">מצב מכשירים בזמן אמת · תעבורת Tx/Rx</span>
+  </div>
+
+  <div class="summary-row">
+    <div class="glass summary-chip"><b id="sum-total">0</b>מכשירים ידועים</div>
+    <div class="glass summary-chip" style="color:var(--ok)"><b id="sum-online">0</b>מחוברים</div>
+    <div class="glass summary-chip" style="color:var(--err)"><b id="sum-offline">0</b>לא מגיבים</div>
+    <div class="glass summary-chip" style="color:var(--accent)"><b id="sum-rate">0</b>הודעות/שנייה</div>
+  </div>
+
+  <div class="layout">
+    <div class="glass panel">
+      <div class="panel-title">
+        מצב מכשירים
+        <span style="display:flex; align-items:center; gap:10px;">
+          <span id="discover-status" style="font-size:0.68rem; color:var(--text-dim);"></span>
+          <button class="clear-btn" id="discover-btn" onclick="discoverDevices()">🔍 גלה מכשירים</button>
+        </span>
+      </div>
+      <div class="device-grid" id="device-grid">
+        <div class="empty-state">ממתין לטלמטריה ראשונה מהרשת…</div>
+      </div>
+    </div>
+
+    <div class="glass panel">
+      <div class="panel-title">
+        קונסולת רשת (Tx/Rx)
+        <button class="clear-btn" onclick="clearConsole()">נקה</button>
+      </div>
+      <div class="console" id="console"></div>
+    </div>
+  </div>
+
+  <script>
+    const OFFLINE_MS = 5000;
+    const socket = io();
+    const devices = new Map();   // id → record
+    let msgTimestamps = [];
+
+    function fmtAgo(ms) {
+      if (!ms) return '—';
+      const s = Math.round((Date.now() - ms) / 1000);
+      if (s < 2) return 'עכשיו';
+      if (s < 60) return `לפני ${s}s`;
+      return `לפני ${Math.round(s/60)}m`;
+    }
+
+    function isOnline(rec) {
+      return rec.online && (Date.now() - rec.lastSeen) <= OFFLINE_MS;
+    }
+
+    function renderState(d) {
+      const role = (d.role || '').toLowerCase();
+      if (!d.state || Object.keys(d.state).length === 0) {
+        // Fallback for relay/pwm/progressbar status if they are passive
+        if (role === 'pwm') {
+          let colors = {w:0, r:0, g:0, b:0};
+          if (d.last_tx && d.last_tx.cmd === 'CMD_PWM') {
+            const match = d.last_tx.detail.match(/wrgb=\((\d+),(\d+),(\d+),(\d+)\)/);
+            if (match) {
+              colors.w = parseInt(match[1]);
+              colors.r = parseInt(match[2]);
+              colors.g = parseInt(match[3]);
+              colors.b = parseInt(match[4]);
+            }
+          }
+          const colorStyle = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
+          return `
+            <div class="state-row" style="display:flex; align-items:center; gap:8px;">
+              <b>צבע:</b> 
+              <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${colorStyle}; border:1px solid #fff; box-shadow:0 0 8px ${colorStyle}"></span>
+              <span>W:${colors.w} R:${colors.r} G:${colors.g} B:${colors.b}</span>
+            </div>
+          `;
+        }
+        if (role === 'relay') {
+          let active = false;
+          if (d.last_tx && d.last_tx.cmd === 'CMD_RELAY') {
+            const matchState = d.last_tx.detail.match(/state=(\d+)/);
+            const matchDur = d.last_tx.detail.match(/dur=(\d+)/);
+            if (matchState && matchState[1] === '1') {
+              const duration = matchDur ? parseInt(matchDur[1]) : 0;
+              const elapsed = Date.now() - d.last_tx.ts;
+              if (duration === 0 || elapsed < duration) {
+                active = true;
+              }
+            }
+          }
+          return `
+            <div class="state-row">
+              <b>מצב ממסר:</b> 
+              <span class="badge ${active ? 'relay-on' : 'relay-off'}">${active ? 'פעיל (ON)' : 'כבוי (OFF)'}</span>
+            </div>
+          `;
+        }
+        if (role === 'progressbar') {
+          let val = 0;
+          let mode = 0;
+          if (d.last_tx && d.last_tx.cmd === 'CMD_PROGRESS') {
+            const matchVal = d.last_tx.detail.match(/val=(\d+)/);
+            const matchMode = d.last_tx.detail.match(/mode=(\d+)/);
+            if (matchVal) val = parseInt(matchVal[1]);
+            if (matchMode) mode = parseInt(matchMode[1]);
+          }
+          return `
+            <div class="state-row"><b>ערך:</b> ${val}% (${mode === 0 ? 'Progress' : 'Solid'})</div>
+            <div class="progress-track" style="background:rgba(255,255,255,0.06); border-radius:4px; height:6px; margin-top:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.1)">
+              <div class="progress-bar" style="width:${val}%; height:100%; background:var(--ok); box-shadow:0 0 6px var(--ok)"></div>
+            </div>
+          `;
+        }
+        return '<div class="state-row" style="color:var(--text-dim)">אין נתוני מצב</div>';
+      }
+      
+      if (role === 'staff') {
+        const orientation = d.state.orientation || 'unknown';
+        const motion = d.state.motionType === 0 ? 'IDLE' : d.state.motionType === 1 ? 'SWING' : d.state.motionType === 2 ? 'SPIN' : 'unknown';
+        const flags = [];
+        if (d.state.throw) flags.push('<span class="badge throw">זריקה</span>');
+        if (d.state.catch) flags.push('<span class="badge catch">תפיסה</span>');
+        if (d.state.impact) flags.push('<span class="badge impact">חבטה</span>');
+        
+        return `
+          <div class="state-row"><b>זווית:</b> ${d.state.angle || 0}° (${orientation})</div>
+          <div class="state-row"><b>מהירות:</b> ${(d.state.speed || 0).toFixed(1)} rad/s (${motion})</div>
+          ${flags.length ? `<div class="state-row" style="margin-top:6px; display:flex; gap:4px;">${flags.join('')}</div>` : ''}
+        `;
+      }
+      if (role === 'mic') {
+        return `
+          <div class="state-row"><b>RMS / פיק:</b> ${(d.state.rms || 0).toFixed(3)} / ${(d.state.peak || 0).toFixed(3)}</div>
+          <div class="state-row"><b>תדר דומיננטי:</b> ${d.state.frequency || 0} Hz</div>
+        `;
+      }
+      if (role === 'pedal') {
+        return `
+          <div class="state-row"><b>קלט אחרון:</b> <span class="badge pedal">${d.state.eventType || '—'}</span></div>
+        `;
+      }
+      return '<div class="state-row" style="color:var(--text-dim)">אין נתוני מצב</div>';
+    }
+
+    function renderDevices() {
+      const grid = document.getElementById('device-grid');
+      const list = [...devices.values()].sort((a, b) => a.id.localeCompare(b.id));
+      if (!list.length) {
+        grid.innerHTML = '<div class="empty-state">ממתין לטלמטריה ראשונה מהרשת…</div>';
+      } else {
+        grid.innerHTML = list.map(d => {
+          const online = isOnline(d);
+          const ctrl = d.controlled_by || 'Hub';
+          const ctrlClass = ctrl === 'Hub' || ctrl.includes('Timeline') || ctrl.includes('Mac') ? '' : 'standalone';
+          
+          return `
+            <div class="device-card ${online ? 'online' : 'offline'}">
+              <div>
+                <div class="device-header">
+                  <div>
+                    <span class="device-id">${d.id}</span>
+                    <span class="status-dot ${online ? 'on' : ''}"></span>
+                  </div>
+                  <span class="control-source ${ctrlClass}">${ctrl}</span>
+                </div>
+                <div class="device-role">${d.role || '—'} ${d.slot ? `(${d.slot})` : ''}</div>
+                <div class="device-meta">
+                  IP: ${d.ip || '—'} | FW: ${d.firmware || '—'}
+                </div>
+              </div>
+              
+              <div class="card-divider"></div>
+              
+              <div class="state-section">
+                <div class="state-title">מצב חיישנים/פעילות</div>
+                ${renderState(d)}
+              </div>
+              
+              <div class="card-divider"></div>
+              
+              <div class="tx-rx-section">
+                <div class="tx-rx-info">
+                  <b>Tx ➔:</b> 
+                  ${d.last_tx ? `<span class="cmd">${d.last_tx.cmd}</span> <span class="detail">${d.last_tx.detail || ''}</span> <span class="ago">${fmtAgo(d.last_tx.ts)}</span>` : '<span style="color:var(--text-dim)">—</span>'}
+                </div>
+                <div class="tx-rx-info">
+                  <b>Rx ↵:</b> 
+                  ${d.last_rx ? `<span style="color:var(--ok)">התקבל אות</span> <span class="ago">${fmtAgo(d.last_rx.ts)}</span>` : '<span style="color:var(--text-dim)">—</span>'}
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+      const online = list.filter(isOnline).length;
+      document.getElementById('sum-total').textContent   = list.length;
+      document.getElementById('sum-online').textContent  = online;
+      document.getElementById('sum-offline').textContent = list.length - online;
+    }
+
+    function upsertDevice(rec) {
+      devices.set(rec.id, { ...(devices.get(rec.id) || {}), ...rec });
+      renderDevices();
+    }
+
+    function appendConsoleLine(entry) {
+      const box = document.getElementById('console');
+      const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+      const time = new Date(entry.ts).toLocaleTimeString('he-IL', { hour12: false });
+      const dirCls = entry.dir === 'TX' ? 'tx' : 'rx';
+      const line = document.createElement('div');
+      line.className = 'console-line';
+      line.innerHTML =
+        `<span class="ts">${time}</span> ` +
+        `<span class="${dirCls}">${entry.dir}</span> ` +
+        `<span>${entry.type}</span> ` +
+        (entry.deviceId ? `<span class="dev">${entry.deviceId}</span> ` : '') +
+        (entry.detail ? `<span class="detail">${entry.detail}</span>` : '');
+      box.appendChild(line);
+      while (box.children.length > 400) box.removeChild(box.firstChild);
+      if (atBottom) box.scrollTop = box.scrollHeight;
+
+      msgTimestamps.push(Date.now());
+    }
+
+    function clearConsole() {
+      document.getElementById('console').innerHTML = '';
+    }
+
+    async function discoverDevices() {
+      const btn = document.getElementById('discover-btn');
+      const status = document.getElementById('discover-status');
+      btn.disabled = true;
+      status.textContent = 'סורק…';
+      try {
+        const res = await fetch('/api/discover', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timeout: 2.5 })
+        });
+        const data = await res.json();
+        status.textContent = data.ok ? `נמצאו ${data.devices.length} תגובות` : `שגיאה: ${data.error}`;
+      } catch (e) {
+        status.textContent = 'שגיאת רשת';
+      }
+      btn.disabled = false;
+      reconcile();
+      setTimeout(() => { status.textContent = ''; }, 4000);
+    }
+
+    socket.on('device_update', upsertDevice);
+    socket.on('net_traffic', appendConsoleLine);
+
+    // messages/second, recomputed every second from the rolling window
+    setInterval(() => {
+      const cutoff = Date.now() - 1000;
+      msgTimestamps = msgTimestamps.filter(t => t > cutoff);
+      document.getElementById('sum-rate').textContent = msgTimestamps.length;
+      renderDevices(); // keep "last seen" / online dots ticking even without new events
+    }, 1000);
+
+    // reconcile on load + periodically, in case a socket event was missed (self-healing)
+    async function reconcile() {
+      try {
+        const res = await fetch('/api/network/devices');
+        const data = await res.json();
+        (data.devices || []).forEach(d => devices.set(d.id, { ...(devices.get(d.id) || {}), ...d }));
+        renderDevices();
+      } catch (_) {}
+    }
+    reconcile();
+    setInterval(reconcile, 5000);
+
+    (async () => {
+      try {
+        const res = await fetch('/api/network/traffic');
+        const data = await res.json();
+        (data.traffic || []).forEach(appendConsoleLine);
+      } catch (_) {}
+    })();
+  </script>
+</body>
+</html>

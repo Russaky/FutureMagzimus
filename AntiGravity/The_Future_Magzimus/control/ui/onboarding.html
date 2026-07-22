@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מדריך מדידות — MAGZIMUS</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg-1: #0a0e17; --bg-2: #10152280;
+      --glass: rgba(255,255,255,0.06); --glass-border: rgba(255,255,255,0.12);
+      --text: #e8ecf4; --text-dim: #8892a6;
+      --accent: #7c9cff; --ok: #3ddc84; --warn: #ffb454; --err: #ff5c7a;
+      --sidebar-w: 76px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, #1c2440 0%, transparent 45%),
+        radial-gradient(circle at 85% 90%, #241a3a 0%, transparent 50%),
+        var(--bg-1);
+      padding: 24px 24px 24px calc(var(--sidebar-w) + 24px);
+    }
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    }
+    .sidebar { background: rgba(10,14,23,0.85); border-right: 1px solid var(--glass-border);
+               backdrop-filter: blur(12px); position: fixed; left:0; top:0; bottom:0;
+               width: var(--sidebar-w); display:flex; flex-direction:column; align-items:center;
+               padding: 10px 0 16px; z-index: 100; gap:4px; }
+    .sidebar-logo { font-size:0.5rem; font-weight:700; color: var(--accent); letter-spacing:1.5px;
+                    text-align:center; padding:4px 2px 10px; border-bottom:1px solid var(--glass-border);
+                    width:100%; margin-bottom:6px; }
+    .nav-item { display:flex; flex-direction:column; align-items:center; padding:6px 4px;
+                border-radius:16px; width:60px; text-decoration:none; color: var(--text-dim);
+                transition: background .15s; cursor:pointer; }
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .nav-item.active { background: rgba(124,156,255,0.18); color: var(--accent); }
+    .nav-icon { font-size:1.25rem; line-height:1.4; }
+    .nav-label { font-size:0.55rem; font-weight:600; text-align:center; letter-spacing:.3px; }
+
+    .page-header { margin-bottom: 18px; display: flex; align-items: baseline; gap: 12px; }
+    .page-title { font-size: 1.4rem; font-weight: 600; letter-spacing: 1px; }
+    .page-subtitle { font-size: 0.85rem; color: var(--text-dim); }
+
+    /* stepper */
+    .stepper { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+    .step-pill { padding: 6px 12px; border-radius: 20px; font-size: 0.72rem; font-family: 'Courier New', monospace;
+                 border: 1px solid var(--glass-border); background: rgba(255,255,255,0.03); color: var(--text-dim);
+                 cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .step-pill:hover { background: rgba(255,255,255,0.08); }
+    .step-pill.current { border-color: var(--accent); color: var(--accent); background: rgba(124,156,255,0.12); font-weight: 700; }
+    .step-pill .chk { color: var(--ok); }
+
+    .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+    .col { display: flex; flex-direction: column; gap: 20px; }
+
+    .panel { padding: 22px; }
+    .panel-title { font-size: 0.8rem; font-weight: 600; color: var(--text-dim);
+                   text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px;
+                   display: flex; justify-content: space-between; align-items: center; }
+
+    .step-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; }
+    .step-badges { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .badge-info { font-size: 0.68rem; padding: 3px 10px; border-radius: 8px; background: rgba(255,255,255,0.06);
+                  color: var(--text-dim); }
+    .step-purpose { font-size: 0.85rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 16px;
+                    border-right: 3px solid var(--accent); padding-right: 12px; }
+    .step-instructions { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .step-instructions li { font-size: 0.88rem; line-height: 1.5; display: flex; gap: 10px; }
+    .step-instructions .num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+                               background: rgba(124,156,255,0.15); color: var(--accent); font-size: 0.72rem;
+                               display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .step-warning { font-size: 0.78rem; color: var(--warn); background: rgba(255,180,84,0.08);
+                     border: 1px solid rgba(255,180,84,0.25); border-radius: 10px; padding: 10px 14px;
+                     margin-bottom: 16px; line-height: 1.5; }
+    .step-note { font-size: 0.74rem; color: var(--text-dim); background: rgba(255,255,255,0.03);
+                  border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 14px; margin-bottom: 16px; }
+
+    .step-expected { font-size: 0.8rem; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+                      background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); line-height: 1.6; }
+    .step-expected .row { display: flex; gap: 8px; align-items: flex-start; }
+    .step-expected .row + .row { margin-top: 8px; }
+    .step-expected .tag { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+    .step-expected .tag.good { background: rgba(61,220,132,0.15); color: var(--ok); }
+    .step-expected .tag.bad { background: rgba(255,92,122,0.15); color: var(--err); }
+
+    .nav-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+    .btn { background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border);
+           color: var(--text); padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; }
+    .btn:hover { background: rgba(255,255,255,0.15); }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* recording box inside step */
+    .rec-box { border-top: 1px dashed var(--glass-border); padding-top: 16px; margin-top: 4px; }
+    .rec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .rec-target { font-size: 0.72rem; color: var(--text-dim); }
+    .record-btn { width: 100%; padding: 14px; border-radius: 12px; font-size: 1rem; font-weight: 700;
+                  cursor: pointer; border: none; color: #fff; display: flex; align-items: center;
+                  justify-content: center; gap: 10px; margin-bottom: 10px; }
+    .record-btn.idle { background: var(--err); box-shadow: 0 4px 15px rgba(255,92,122,0.4); }
+    .record-btn.active { background: #3a1c22; border: 1px solid var(--err); color: var(--err); animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .mark-btn { width: 100%; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 700;
+                cursor: pointer; background: rgba(124,156,255,0.18); border: 1px solid var(--accent);
+                color: var(--accent); margin-bottom: 10px; }
+    .mark-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .elapsed { text-align: center; font-family: 'Courier New', monospace; font-size: 1rem; margin-bottom: 8px; }
+    .elapsed.reached { color: var(--ok); }
+    .no-record-note { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 10px; }
+
+    .manual-field { margin-bottom: 14px; }
+    .manual-field label { display: block; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 6px; }
+    .manual-field-row { display: flex; gap: 8px; }
+    .manual-field-row input { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+      border-radius: 8px; color: var(--text); padding: 8px 10px; font-size: 0.85rem; font-family: 'Courier New', monospace; }
+    .manual-field-saved { font-size: 0.72rem; color: var(--ok); margin-top: 6px; }
+
+    /* live telemetry mini card */
+    .live-grid { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .live-stat { border-radius: 10px; padding: 10px 16px; text-align: center; min-width: 90px;
+                 background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); }
+    .live-stat .lbl { font-size: 0.62rem; color: var(--text-dim); margin-bottom: 3px; text-transform: uppercase; }
+    .live-stat .val { font-size: 1.05rem; font-weight: 700; font-family: 'Courier New', monospace; }
+    .raw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    .raw-cell { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+                border-radius: 8px; padding: 6px; text-align: center; }
+    .raw-cell .lbl { font-size: 0.58rem; color: var(--text-dim); }
+    .raw-cell .val { font-family: 'Courier New', monospace; font-size: 0.82rem; }
+
+    .findings-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .findings-list li { font-size: 0.8rem; line-height: 1.5; background: rgba(255,255,255,0.03);
+                         border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 12px; }
+    .findings-list b { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-header">
+    <span class="page-title">מדריך מדידות — Staff → Hub</span>
+    <span class="page-subtitle">מנחה שלב-אחר-שלב לפי SmartStaff_Measurement_Campaign_v2 · המטרה: לאסוף נתונים נקיים לניתוח מעמיק</span>
+  </div>
+
+  <div class="stepper" id="stepper"></div>
+
+  <div class="layout">
+    <div class="col">
+      <div class="glass panel" id="step-panel"></div>
+    </div>
+    <div class="col">
+      <div class="glass panel">
+        <div class="panel-title">MPU LIVE — Master <span id="conn-dot" style="width:9px;height:9px;border-radius:50%;background:var(--err);"></span></div>
+        <div class="live-grid">
+          <div class="live-stat"><div class="lbl">Angle</div><div class="val" id="v-angle" style="color:#ffd479">0°</div></div>
+          <div class="live-stat"><div class="lbl">Speed</div><div class="val" id="v-speed" style="color:var(--ok)">0.0</div></div>
+        </div>
+        <div class="raw-grid">
+          <div class="raw-cell"><div class="lbl">accX</div><div class="val" id="v-ax">—</div></div>
+          <div class="raw-cell"><div class="lbl">accY</div><div class="val" id="v-ay">—</div></div>
+          <div class="raw-cell"><div class="lbl">accZ</div><div class="val" id="v-az">—</div></div>
+          <div class="raw-cell"><div class="lbl">gyroX</div><div class="val" id="v-gx">—</div></div>
+          <div class="raw-cell"><div class="lbl">gyroY</div><div class="val" id="v-gy">—</div></div>
+          <div class="raw-cell"><div class="lbl">gyroZ</div><div class="val" id="v-gz">—</div></div>
+        </div>
+      </div>
+      <div class="glass panel">
+        <div class="panel-title">קבצים שנאספו עד כה</div>
+        <div class="file-list" id="file-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:0.75rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── Step data — condensed from docs/SmartStaff_Measurement_Campaign_v2.md ───
+    const STEPS = [
+      { id: 'M0', title: 'M0 — מיפוי המערכת', duration: 'בוצע ע"י הסוכן · ללא פעולת מבצע', info: true,
+        purpose: 'בדיקה סטטית של הקוד לפני כל מדידה בשטח — קובעת אילו חישובים בכלל קבילים.',
+        findings: [
+          '<b>טופולוגיה:</b> שני MCU נפרדים (Master S3 + Slave C3), כל אחד עם IMU משלו, מסונכרנים ב-ESP-NOW.',
+          '<b>Scope נוכחי:</b> נעשה שימוש ב-IMU של ה-Master בלבד. שילוב Slave (וסכימת a_A+a_B) נדחה עד להחלטה לפי תוצאות.',
+          '<b>StaffTelemetry:</b> 25 בתים, ללא שדה sequence וללא timestamp ממקור הסטאף → אין מדד % אובדן אמיתי, רק פערי זמן הגעה.',
+        ] },
+      { id: 'M1a', title: 'M1a — מדידת גיאומטריה (r)', duration: '~2 דק׳ · ללא הקלטה', noRecord: true,
+        purpose: 'r קובע את מהירות הקטימה הצפויה (ω²r) ואת איכות הביטול העתידי — נדרש כקלט מדויק ל-M4.',
+        instructions: [
+          'מדוד עם סרט מדידה את r — המרחק מהמרכז הגיאומטרי של הסטאף עד לחיישן ה-Master.',
+          'הזן את הערך בשדה למטה ולחץ שמור — הוא נשמר לצד הקבצים הגולמיים (docs/measurements/_meta.json).',
+        ],
+        manualFields: [
+          { key: 'r_master_cm', label: 'r — מרחק ממרכז הסטאף לחיישן Master (ס״מ)' },
+        ] },
+      { id: 'M1b', title: 'M1b — סטאף אנכי, קצה Master למעלה', duration: '10 שניות סטטי',
+        purpose: 'החיישן מחובר ידנית על לוח שאינו מקובע בדיוק לזווית המוט — לכן לא מניחים שהוא "מיושר" באופן מושלם. הקריאה הסטטית כאן היא הייחוס לכיול הסטייה בפועל, לא בדיקת ±1g תיאורטית.',
+        instructions: [
+          'החזק את הסטאף אנכי לגמרי, קצה ה-Master כלפי מעלה.',
+          'לחץ "התחל הקלטה" ואז השאר סטטי לגמרי במשך 10 שניות.',
+          'עקוב אחרי accX/accY/accZ בפאנל הימני — הווקטור המלא (לא רק accY) הוא הייחוס.',
+          'לחץ "עצור הקלטה".',
+        ],
+        warning: 'זה לא בדיקת "accY≈±1g" — סטייה קלה בגלל הרכבה ידנית צפויה ותתוקן בניתוח (offline), לא כאן. דגל אדום אמיתי: אם accY אינו הציר הדומיננטי בעליל (הגדול בגודלו משמעותית מ-accX/accZ) — זו כבר לא סטיית הרכבה קלה אלא ציר שגוי לגמרי. תעד ועצור.',
+        expected: {
+          good: 'accY הוא הציר הדומיננטי (הגדול בבירור מ-accX/accZ) לאורך כל 10 השניות, יציב וללא רעש — הערך המדויק עצמו הוא הייחוס לכיול, לא יעד.',
+          bad: 'ציר אחר (X או Z) דומיננטי במקום accY — לא סטיית הרכבה קלה אלא בעיה מהותית יותר בהנחת הציר.' } },
+      { id: 'M1c', title: 'M1c — היפוך (קצה השני למעלה)', duration: '10 שניות סטטי',
+        purpose: 'אימות שהתוצאה ב-M1b לא הייתה מקרית — ונקודת ייחוס שנייה לכיול הסטייה.',
+        instructions: [
+          'הפוך את הסטאף — הקצה השני כלפי מעלה.',
+          'הקלט 10 שניות סטטיות, בדיוק כמו ב-M1b.',
+        ],
+        note: 'accY צפוי להתהפך בסימן ביחס ל-M1b, אבל לא בהכרח באותו גודל מדויק — ההפרש עצמו הוא חלק מהמידע על זווית ההרכבה.',
+        expected: {
+          good: 'accY מתהפך בסימן ביחס ל-M1b, ונשאר הציר הדומיננטי לאורך כל ההקלטה.',
+          bad: 'אין היפוך סימן, או שהציר הדומיננטי משתנה — משמעו ש-M1b לא היה תוצאה עקבית ויש לחזור עליו.' } },
+      { id: 'M1d', title: 'M1d — סטאף אופקי', duration: '10 שניות סטטי',
+        purpose: 'נקודת ייחוס שלישית לכיול — הכבידה אמורה לעבור ברובה למישור X-Z.',
+        instructions: [
+          'הצב את הסטאף אופקי לחלוטין.',
+          'הקלט 10 שניות סטטיות.',
+        ],
+        note: 'accY אמור להיות קטן משמעותית מ-accX/accZ — לא בהכרח 0 מדויק. שארית קטנה היא בדיוק המידע שממנו יחושבת זווית ההרכבה בניתוח.',
+        expected: {
+          good: 'accY קטן משמעותית מ-accX/accZ (קרוב יחסית ל-0, לא בהכרח מדויק).',
+          bad: 'accY עדיין דומיננטי גם באופקי — ההרכבה לא תואמת בכלל את ההנחה הבסיסית (ציר לאורך המוט).' } },
+      { id: 'M2-1', title: 'M2-1 — Baseline (לדים כבויים)', duration: '60 שניות', ledState: 'off',
+        purpose: 'קצב ואובדן נקיים, ללא הפרעת זרם/רדיו — נקודת ייחוס לשני התרחישים הבאים.',
+        instructions: [
+          'הממשק שולח אוטומטית פקודת LED OFF להאב כשנכנסים לשלב — ודא שהלדים באמת כבויים.',
+          'הנח את הסטאף במקום קבוע.',
+          'הקלט 60 שניות ללא כל תזוזה.',
+        ],
+        expected: {
+          good: 'Δt בין חבילות יציב, p99 קרוב לממוצע — baseline נקי, ללא jitter בסיסי.',
+          bad: 'p99 הרבה מעל הממוצע כבר כאן (בלי לדים) — יש jitter ברדיו/בקוד שלא קשור ללדים בכלל.' } },
+      { id: 'M2-2', title: 'M2-2 — לדים במלוא העוצמה', duration: '60 שניות', ledState: 'full',
+        purpose: 'בדיקת השפעת צריכת זרם ורעש חשמלי על ה-bus בזמן שידור.',
+        instructions: [
+          'הממשק שולח אוטומטית פקודת LED לבן במלוא העוצמה להאב כשנכנסים לשלב — ודא שהלדים באמת דלוקים.',
+          'סטאף עדיין ללא תזוזה.',
+          'הקלט 60 שניות.',
+        ],
+        expected: {
+          good: 'התפלגות ה-Δt דומה ל-M2-1 — הלדים לא מוסיפים רעש חשמלי/עומס על ה-bus.',
+          bad: 'p99/פערים גדלים משמעותית ביחס ל-M2-1 — רעש חשמלי או צריכת זרם מהלדים משפיעים על קריאת ה-IMU.' } },
+      { id: 'M2-3', title: 'M2-3 — ספין רציף (תנאי הופעה)', duration: '60 שניות', ledState: 'full',
+        purpose: 'התרחיש היחיד שמשקף אמת של הופעה בפועל.',
+        instructions: [
+          'לדים כבר במלוא העוצמה (נשלח אוטומטית).',
+          'עמוד 3–5 מטר מה-Hub (מרחק הופעה טיפוסי).',
+          'סובב את הסטאף ברציפות.',
+          'הקלט 60 שניות.',
+        ],
+        note: 'אם התרחיש הזה גרוע משמעותית מ-M2-2 — זו בעיית טווח/גוף. אל תנסה לפתור בקוד.',
+        expected: {
+          good: 'התפלגות דומה ל-M2-2 — זה התרחיש היחיד שמייצג תנאי הופעה אמיתיים, ולכן הכי חשוב שיצא נקי.',
+          bad: 'גרוע משמעותית מ-M2-2 — בעיית טווח רדיו או חסימת גוף בין המבצע להאב. לא נפתר בקוד.' } },
+      { id: 'M3', title: 'M3 — סיבוב איטי (φ ושחזור 360°)', duration: '~15 דקות',
+        purpose: 'כאן נופלות ההכרעות הגדולות של הקמפיין — האם φ קבוע, והאם 360° מלאים ניתנים לשחזור בלי אינטגרציה.',
+        instructions: [
+          'סמן פיזית ייחוס בעמדה: סטאף מצביע ישר למטה = 0°.',
+          'לחץ "התחל הקלטה".',
+          'ברגע שהסטאף בדיוק ב-0°, לחץ "סמן 0°" — זו נקודת הייחוס לכל הניתוח.',
+          'בצע 10 סיבובי גלגל איטיים (בערך סיבוב אחד לשנייה), ונסה לעצור בכל פעם קרוב ל-0°.',
+          'לחץ "עצור הקלטה".',
+        ],
+        note: 'מבחן הביטול (a_A+a_B)/2 דורש את ה-Slave ולכן נדחה כרגע — φ ושחזור 360° עדיין נמדדים על ה-Master בלבד.',
+        expected: {
+          good: 'φ מהגירו (atan2(gz,gx)) ו-φ מהאקסלרומטר (נורמל מישור) מסכימים; gy≈0 לאורך כל הסיבוב; atan2 נותן 0→360° רציפים בלי קיפול ב-180°.',
+          bad: 'שתי שיטות ה-φ לא מסכימות → עצור, אל תמשיך ל-M4 (בעיה עמוקה בהרכבה/סימנים). או: הזווית עדיין מתקפלת למרות φ → השערת φ הופרכה — ממצא תקף, לא כישלון.' } },
+      { id: 'M4', title: 'M4 — סקאלת מהירות', duration: '~20 דקות (3 חזרות)',
+        purpose: 'המדידה המכריעה של הקמפיין — קובעת אם השיטה שורדת במהירות האמיתית של הנאמבר, לא רק באיטי.',
+        instructions: [
+          'לחץ "התחל הקלטה".',
+          'רמפה הדרגתית ורציפה על פני 30 שניות: מנוחה → איטי → בינוני → מהיר → מקסימלי.',
+          'לחץ "עצור הקלטה".',
+          'חזור על התהליך עוד פעמיים (סה"כ 3 הקלטות נפרדות של M4).',
+        ],
+        note: 'תוקף ה"הפרש" ((a_A−a_B)/2) כתחליף לגירו דורש Slave — נדחה. שאר הממצאים (מהירות קטימה, % קטימה, מוות כבידה, תוקף 360°) נמדדים על ה-Master.',
+        expected: {
+          good: 'התרחיש הטוב: הכבידה נשארת יציבה (~1g) מעל טווח המהירות של הנאמבר כולו — זווית מוחלטת לאורך כל הנאמבר, בלי אינטגרציה ובלי תפר בין משטרים.',
+          bad: 'הכבידה "מתה" בתוך טווח הנאמבר → צריך משטר כפול + תפר מוגדר. או: הקטימה מתחילה מתחת ל-2 סל"ש → השיטה לא זמינה מכנית (r גדול מדי), לא בעיית קוד.' } },
+      { id: 'M5', title: 'M5 — חום', duration: '15 דק׳ המתנה + 5 דק׳ מדידה', ledState: 'full',
+        purpose: 'כל המדידות עד כאן היו על חומרה קרה. הופעה היא 7 דקות עם לדים דולקים בצינור סגור — אם הכיול לא שורד את זה, הוא לא קיים.',
+        instructions: [
+          'הממשק כבר שלח פקודת LED מלא — השאר כך 15 דקות רצופות (ללא הקלטה — זה שלב חימום בלבד).',
+          'מיד בתום 15 הדקות, והלדים עדיין דלוקים: חזור בדיוק על M1b (10 שניות סטטי, קצה Master למעלה) — הקלט.',
+          'מיד אחרי כן: חזור על תחילת M3 (סימון 0° + כמה סיבובים איטיים) — הקלט.',
+        ],
+        expected: {
+          good: 'φ ו-bias נשארים יציבים גם אחרי 15 דק׳ חימום — הזחה קטנה בלבד, נסבלת.',
+          bad: 'φ זז משמעותית עם החום → כיול חד-פעמי לא מספיק, נדרש In-Use Calibration מתמשך. הזחת bias גדולה → אותה מסקנה.' } },
+    ];
+
+    let current = 0;
+    let recording = false;
+    let recStartTs = null;
+    let recordedStages = new Set();
+    let metaCache = {};
+
+    async function loadMeta() {
+      try {
+        const res = await fetch('/api/measure/meta');
+        const data = await res.json();
+        metaCache = data.meta || {};
+      } catch (_) {}
+    }
+
+    // ─── Engine reactivity lock ───
+    // A demo Number (numbers/example.json) is loaded by the engine at all times and
+    // reacts to live staff telemetry (e.g. speed > 2.0 → INTERRUPT red/blue/off).
+    // Manual LED commands sent from this page bypass the engine entirely, so the
+    // engine has no idea a measurement session is in progress and will keep
+    // overriding them the moment the staff moves. Swap it for an empty Number
+    // (numbers/stress-test.json — zero events) while this page is open, and put
+    // the original back on exit.
+    let engineNumberPath = null;
+    async function lockEngineReactivity() {
+      try {
+        const res = await fetch('/api/numbers/list');
+        const data = await res.json();
+        const list = data.numbers || [];
+        const current = list.find(n => n.file === 'example.json');
+        const empty = list.find(n => n.file === 'stress-test.json');
+        if (current) engineNumberPath = current.path;
+        if (empty) {
+          await fetch('/api/number/load', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ path: empty.path })
+          });
+        }
+      } catch (_) {}
+    }
+    function unlockEngineReactivity() {
+      if (!engineNumberPath) return;
+      fetch('/api/number/load', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: engineNumberPath }),
+        keepalive: true
+      }).catch(() => {});
+    }
+    window.addEventListener('beforeunload', unlockEngineReactivity);
+
+    async function saveManualField(key) {
+      const input = document.getElementById(`mf-${key}`);
+      const val = input.value.trim();
+      if (!val) { alert('הזן ערך'); return; }
+      const res = await fetch('/api/measure/meta', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ [key]: parseFloat(val) })
+      });
+      const data = await res.json();
+      if (!data.ok) { alert('שגיאה בשמירה'); return; }
+      metaCache = data.meta;
+      document.getElementById(`mf-saved-${key}`).textContent =
+        `נשמר: ${metaCache[key].value} · ${new Date(metaCache[key].ts).toLocaleString('he-IL')}`;
+    }
+
+    function stageTarget(id) {
+      if (id === 'M1b' || id === 'M1c' || id === 'M1d') return 10;
+      if (id.startsWith('M2-')) return 60;
+      return null; // no fixed short target (M3/M4/M5 are operator-paced)
+    }
+
+    function renderStepper() {
+      const el = document.getElementById('stepper');
+      el.innerHTML = STEPS.map((s, i) => `
+        <div class="step-pill ${i === current ? 'current' : ''}" onclick="goTo(${i})">
+          ${recordedStages.has(s.id) ? '<span class="chk">✓</span>' : ''}${s.id}
+        </div>`).join('');
+    }
+
+    function renderStep() {
+      const s = STEPS[current];
+      const panel = document.getElementById('step-panel');
+      let html = `
+        <div class="step-title">${s.title}</div>
+        <div class="step-badges">
+          <span class="badge-info">⏱ ${s.duration}</span>
+          ${s.ledState ? `<span class="badge-info" id="led-status-badge">💡 ${s.ledState === 'full' ? 'לדים: מלא (נשלח)' : 'לדים: כבוי (נשלח)'}</span>
+            <button class="link-btn" style="color:var(--accent);background:none;border:none;cursor:pointer;font-size:0.68rem;" onclick="applyLedState('${s.ledState}')">שלח שוב</button>` : ''}
+        </div>
+        <div class="step-purpose">${s.purpose}</div>`;
+
+      if (s.findings) {
+        html += `<ul class="findings-list">${s.findings.map(f => `<li>${f}</li>`).join('')}</ul>`;
+      }
+      if (s.instructions) {
+        html += `<ol class="step-instructions">${s.instructions.map((t, i) =>
+          `<li><span class="num">${i+1}</span><span>${t}</span></li>`).join('')}</ol>`;
+      }
+      if (s.warning) html += `<div class="step-warning">⚠ ${s.warning}</div>`;
+      if (s.note) html += `<div class="step-note">ℹ ${s.note}</div>`;
+
+      if (s.expected) {
+        html += `<div class="step-expected">
+          <div class="row"><span class="tag good">מצופה</span><span>${s.expected.good}</span></div>
+          ${s.expected.bad ? `<div class="row"><span class="tag bad">דגל אדום</span><span>${s.expected.bad}</span></div>` : ''}
+        </div>`;
+      }
+
+      if (s.manualFields) {
+        html += s.manualFields.map(f => {
+          const saved = metaCache[f.key];
+          return `
+            <div class="manual-field">
+              <label>${f.label}</label>
+              <div class="manual-field-row">
+                <input type="number" step="0.1" id="mf-${f.key}" placeholder="ס״מ" value="${saved ? saved.value : ''}">
+                <button class="btn" onclick="saveManualField('${f.key}')">שמור</button>
+              </div>
+              <div class="manual-field-saved" id="mf-saved-${f.key}">${saved ? `נשמר: ${saved.value} · ${new Date(saved.ts).toLocaleString('he-IL')}` : ''}</div>
+            </div>`;
+        }).join('');
+      }
+
+      if (!s.info && !s.noRecord) {
+        const target = stageTarget(s.id);
+        html += `
+          <div class="rec-box">
+            <div class="rec-head">
+              <span style="font-size:0.8rem;color:var(--text-dim)">הקלטה עבור <b style="color:var(--text)">${s.id}</b></span>
+              ${target ? `<span class="rec-target">יעד: ${target}s</span>` : ''}
+            </div>
+            <div class="elapsed" id="elapsed" style="display:none">0.0s</div>
+            <button class="record-btn idle" id="record-btn" onclick="toggleRecord()">🔴 התחל הקלטה</button>
+            ${s.id === 'M3' ? '<button class="mark-btn" id="mark-btn" disabled onclick="markZero()">📍 סמן 0° / תחילת סיבוב</button>' : ''}
+          </div>`;
+      } else if (s.noRecord) {
+        html += `<div class="no-record-note">אין צורך בהקלטה בשלב זה — מדידה פיזית בלבד.</div>`;
+      }
+
+      html += `
+        <div class="nav-row">
+          <button class="btn" onclick="goTo(${current - 1})" ${current === 0 ? 'disabled' : ''}>→ הקודם</button>
+          <button class="btn" onclick="goTo(${current + 1})" ${current === STEPS.length - 1 ? 'disabled' : ''}>השלב הבא ←</button>
+        </div>`;
+
+      panel.innerHTML = html;
+    }
+
+    function goTo(i) {
+      if (i < 0 || i >= STEPS.length) return;
+      if (recording) { alert('יש הקלטה פעילה — עצור אותה לפני מעבר שלב.'); return; }
+      current = i;
+      renderStepper();
+      renderStep();
+      if (STEPS[current].ledState) applyLedState(STEPS[current].ledState);
+    }
+
+    // ─── LED control — auto-set staff LEDs for steps that explicitly require a state ───
+    // Broadcast (no targetId) reaches every staff head; harmless since both heads light the
+    // same physical staff. Steps without ledState never touch LED state (no side effects).
+    async function applyLedState(state) {
+      const badge = document.getElementById('led-status-badge');
+      try {
+        const body = state === 'full'
+          ? { cmdType: 1, r: 255, g: 255, b: 255, brightness: 255 }
+          : { cmdType: 0 };
+        const res = await fetch('/api/command/staff', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (badge) badge.textContent = data.ok
+          ? `💡 לדים: ${state === 'full' ? 'מלא' : 'כבוי'} (נשלח)`
+          : `💡 לדים: שגיאה בשליחה`;
+      } catch (e) {
+        if (badge) badge.textContent = '💡 לדים: שרת לא זמין';
+      }
+    }
+
+    // ─── Recording (shared backend with measure.html) ───
+    async function toggleRecord() {
+      const s = STEPS[current];
+      if (!recording) {
+        const res = await fetch('/api/measure/start', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ stage: s.id })
+        });
+        const data = await res.json();
+        if (!data.ok) { alert('שגיאה: ' + data.error); return; }
+        recording = true; recStartTs = Date.now();
+        document.getElementById('record-btn').className = 'record-btn active';
+        document.getElementById('record-btn').textContent = '⏹ עצור הקלטה';
+        document.getElementById('elapsed').style.display = 'block';
+        const markBtn = document.getElementById('mark-btn');
+        if (markBtn) markBtn.disabled = false;
+      } else {
+        const res = await fetch('/api/measure/stop', { method: 'POST' });
+        const data = await res.json();
+        recording = false; recStartTs = null;
+        recordedStages.add(s.id);
+        renderStepper();
+        document.getElementById('record-btn').className = 'record-btn idle';
+        document.getElementById('record-btn').textContent = '🔴 התחל הקלטה';
+        const markBtn = document.getElementById('mark-btn');
+        if (markBtn) markBtn.disabled = true;
+        refreshFiles();
+        alert(`נשמר: ${data.file} (${data.count} פריימים)`);
+      }
+    }
+
+    async function markZero() {
+      const res = await fetch('/api/measure/mark', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ label: '0deg' })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const btn = document.getElementById('mark-btn');
+        btn.textContent = '✓ סומן';
+        setTimeout(() => { btn.textContent = '📍 סמן 0° / תחילת סיבוב'; }, 1200);
+      }
+    }
+
+    setInterval(() => {
+      if (recording && recStartTs) {
+        const el = document.getElementById('elapsed');
+        if (!el) return;
+        const secs = (Date.now() - recStartTs) / 1000;
+        const target = stageTarget(STEPS[current].id);
+        el.textContent = secs.toFixed(1) + 's';
+        el.classList.toggle('reached', target && secs >= target);
+      }
+    }, 200);
+
+    // ─── Live telemetry (read-only, same stream as measure.html) ───
+    const socket = io();
+    function applyTelemetry(d) {
+      document.getElementById('conn-dot').style.background = 'var(--ok)';
+      document.getElementById('conn-dot').style.boxShadow = '0 0 8px var(--ok)';
+      document.getElementById('v-angle').textContent = (d.angle ?? 0) + '°';
+      const spd = d.speed;
+      document.getElementById('v-speed').textContent = (typeof spd === 'number' ? spd.toFixed(2) : spd ?? 0);
+      document.getElementById('v-ax').textContent = d.accX ?? '—';
+      document.getElementById('v-ay').textContent = d.accY ?? '—';
+      document.getElementById('v-az').textContent = d.accZ ?? '—';
+      document.getElementById('v-gx').textContent = d.gyroX ?? '—';
+      document.getElementById('v-gy').textContent = d.gyroY ?? '—';
+      document.getElementById('v-gz').textContent = d.gyroZ ?? '—';
+    }
+    socket.on('telemetry', (d) => {
+      if (d._type && d._type !== 'staff_telemetry') return;
+      applyTelemetry(d);
+    });
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function refreshFiles() {
+      try {
+        const res = await fetch('/api/measure/files');
+        const data = await res.json();
+        const list = document.getElementById('file-list');
+        if (!data.files || !data.files.length) {
+          list.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:10px;">אין קבצים עדיין</div>';
+        } else {
+          list.innerHTML = data.files.map(f => `
+            <div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid var(--glass-border);border-radius:8px;padding:6px 10px;">
+              <span style="font-family:'Courier New',monospace;">${escapeHtml(f.name)}</span>
+              <span style="color:var(--text-dim);">${(f.size/1024).toFixed(1)} KB</span>
+            </div>`).join('');
+        }
+        // mark stepper checkmarks for stages that already have at least one file
+        recordedStages = new Set();
+        (data.files || []).forEach(f => {
+          STEPS.forEach(s => { if (f.name.includes(`_${s.id}.jsonl`)) recordedStages.add(s.id); });
+        });
+        renderStepper();
+      } catch (e) {}
+    }
+
+    (async () => {
+      await lockEngineReactivity();
+      await loadMeta();
+      renderStepper();
+      renderStep();
+    })();
+    refreshFiles();
+    setInterval(refreshFiles, 5000);
+  </script>
+</body>
+</html>

@@ -408,5 +408,1218 @@
     "dependencies": [
       "b1a2c3d4-0001-0000-0000-000000000001"
     ]
+  },
+  {
+    "id": "df5c7bfb-1191-4cf4-916c-e2f09d849501",
+    "title": "Software Update & Network Configuration Interface",
+    "description": "פיתוח ממשק לווב-אפליקציה המאפשר ניהול רשת, עדכוני OTA מקביליים לכל ה-Nodes, ניטור כתובות MAC/IP, בדיקות פינג ומצב צריבה חוטית ראשונית.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "flask-socketio",
+        "requests"
+      ],
+      "design_patterns": [
+        "Observer Pattern",
+        "Strategy Pattern"
+      ],
+      "constraints": [
+        "Parallel OTA transfers with individual progress bars",
+        "Network recovery checks within 2000ms",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "8da6c9f2-2b62-42bf-be7a-12e09b1f7d54"
+    ]
+  },
+  {
+    "id": "df5c7bfb-2292-4cf4-916c-e2f09d849502",
+    "title": "Node-based Timeline and Event Editor",
+    "description": "בניית עורך נאמברים מבוסס Node-Graph המאפשר קישור ויזואלי בין טריגרים של IMU (או טיימקוד) לבין טיימליינים של מכשירי קצה שונים (Staff, Relay, PWM).",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "React Flow",
+        "lodash"
+      ],
+      "design_patterns": [
+        "Composite Pattern",
+        "Command Pattern"
+      ],
+      "constraints": [
+        "JSON structure compliance with numbers/example.json",
+        "Timecode synchronization accuracy < 10ms",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    ]
+  },
+  {
+    "id": "df5c7bfb-3393-4cf4-916c-e2f09d849503",
+    "title": "Show Planner and Sidebar Navigation Module",
+    "description": "יצירת לוח מחוונים לניהול מופע שלם המאגד את רשימת הנאמברים, עם תפריט ניווט צדדי למעבר מהיר, טעינת נאמברים דינמית לשרת, ומחווני סטטוס בזמן אמת של כל ה-Nodes במופע.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "tailwindcss",
+        "lucide-icons"
+      ],
+      "design_patterns": [
+        "State Management Pattern",
+        "Facade Pattern"
+      ],
+      "constraints": [
+        "Seamless load switching of number config files",
+        "Real-time node telemetry visualization",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "df5c7bfb-2292-4cf4-916c-e2f09d849502"
+    ]
+  },
+  {
+    "id": "df5c7bfb-4494-4cf4-916c-e2f09d849504",
+    "title": "LED & WRGB Light Effect Designer Interface",
+    "description": "פיתוח ממשק מעצב אפקטים אינטראקטיבי המאפשר קביעת צבעים, עוצמות, פיידים ודפוסי תאורה דינמיים עבור פסי לדים WS2812B ופנסי WRGB, כולל סימולציה ויזואלית בזמן אמת.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "canvas",
+        "chromajs"
+      ],
+      "design_patterns": [
+        "Factory Pattern",
+        "Decorator Pattern"
+      ],
+      "constraints": [
+        "Live preview rendering frame rate > 30 FPS",
+        "Effect configuration validation against WLED JSON/HTTP APIs",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)",
+        "WLED API integration for LED state control"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "df5c7bfb-3393-4cf4-916c-e2f09d849503"
+    ]
+  },
+  {
+    "id": "df5c7bfb-5595-4cf4-916c-e2f09d849505",
+    "title": "Multi-Node Timeline Show Composer",
+    "description": "בניית עורך ציר זמן (Timeline Composer) רב-ערוצי לתיאום סנכרוני של אפקטים ותאורות בין מגוון ה-Nodes השונים במופע (Staff, Relay, PWM), תומך בהגדרת קישורי מפתח ואוטומציה.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "wavesurfer.js",
+        "d3-drag"
+      ],
+      "design_patterns": [
+        "Command Pattern",
+        "Mediator Pattern"
+      ],
+      "constraints": [
+        "Multi-channel drag-and-drop keyframe timeline UI",
+        "Time synchronization resolution < 20ms across nodes",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)",
+        "WLED API synchronization across dynamic timeline events"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "df5c7bfb-4494-4cf4-916c-e2f09d849504"
+    ]
+  },
+  {
+    "id": "df5c7bfb-6696-4cf4-916c-e2f09d849506",
+    "title": "Firmware Builder & Effect Bundling Module",
+    "description": "פיתוח מודול שרת המאפשר לתרגם את הגדרות האפקטים החדשות שיוצרו במעצב אל קובצי הגדרה (כגון presets.json או קובצי קוד), להריץ הידור אוטומטי (Build Pipeline) ולהכין קובצי בינארי (.bin) להפצה דרך ה-OTA.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "subprocess",
+        "shutil"
+      ],
+      "design_patterns": [
+        "Builder Pattern",
+        "Pipeline Pattern"
+      ],
+      "constraints": [
+        "Automated compilation status reporting in UI",
+        "Staging built firmware binaries directly into the OTA update directory",
+        "Google Material Design 3 guidelines (light theme, soft pastel colors, high contrast)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "df5c7bfb-1191-4cf4-916c-e2f09d849501",
+      "df5c7bfb-4494-4cf4-916c-e2f09d849504"
+    ]
+  },
+  {
+    "id": "spec-fw-001",
+    "title": "Staff Firmware — Extended Telemetry (throw/catch/spin_direction/orientation/impact)",
+    "description": "הרחבת StaffTelemetry לכלול: throw, catch, spin_direction (CW/CCW), orientation (vertical/horizontal/inverted), impact. כל פרמטר מזוהה ב-firmware, מועבר כ-uint8_t flags byte נוסף בפקט. עדכון Protocol.h בכל ה-firmwares ו-protocol.py.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "Wire",
+        "esp_now"
+      ],
+      "design_patterns": [
+        "Bitmask flags"
+      ],
+      "constraints": [
+        "StaffTelemetry נוכחי 24 bytes — הוסף flags byte אחד (25 bytes)",
+        "throw/catch: threshold ב-Config.h",
+        "orientation: threshold זווית ב-Config.h",
+        "impact: peak acc > IMPACT_THRESHOLD"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "spec-fw-002",
+    "title": "Progress Bar Firmware (ESP32-C3 + 100× WS2812B)",
+    "description": "קושחת מכשיר Progress Bar: קבלת MSG_CMD_PROGRESS מ-ESP-NOW, תמיכה ב-2 מצבים: progress (0–100%, fill מצד שמאל) ו-solid color. IDLE state. הוסף MSG_CMD_PROGRESS=0x13 ל-Protocol.h.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "FastLED",
+        "esp_now"
+      ],
+      "design_patterns": [
+        "State Machine"
+      ],
+      "constraints": [
+        "100 LEDs addressable",
+        "MSG_CMD_PROGRESS=0x13",
+        "payload: targetId(B) mode(B) value(B 0-100) r(B) g(B) b(B) fadeMs(H) = 8 bytes",
+        "IDLE state כבוי כברירת מחדל"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "spec-fw-003",
+    "title": "Microphone Firmware (ESP32-C3 + MAX9814)",
+    "description": "קושחת Microphone: דגימת ADC, חישוב RMS ו-peak ב-firmware, FFT בסיסי לזיהוי frequency דומיננטי. שליחת MicTelemetry ל-Hub כל 50ms. הגדרת window_size ו-sample_rate ב-Config.h.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "arduinoFFT"
+      ],
+      "design_patterns": [
+        "Circular buffer"
+      ],
+      "constraints": [
+        "ADC על GPIO 0 (MAX9814 OUT)",
+        "sample_rate: 8000Hz",
+        "window_size: 256 samples",
+        "MicTelemetry: groupId(B) deviceId(H) rms(f) peak(f) frequency(f) = 15 bytes",
+        "MSG_MIC_TELEMETRY=0x02"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "spec-fw-004",
+    "title": "Pedal Firmware (ESP32 + microswitch + LED)",
+    "description": "קושחת Pedal: זיהוי press/release/hold/short/long/double/triple ב-firmware. שליחת PedalEvent ל-Hub. נורת LED מובנית: ירוק=רשת תקינה, צהוב=מכשיר חסר, אדום=Brain לא מחובר.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [
+        "State Machine",
+        "Debounce"
+      ],
+      "constraints": [
+        "SHORT_THRESHOLD_MS=300",
+        "LONG_THRESHOLD_MS=700",
+        "DOUBLE_WINDOW_MS=400",
+        "TRIPLE_WINDOW_MS=600",
+        "MSG_PEDAL_EVENT=0x03",
+        "PedalEvent: groupId(B) deviceId(H) eventType(B) = 4 bytes",
+        "LED status: מקבל MSG_NET_STATUS=0x14 מ-Hub"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "5c479e0a-bf47-4f65-8b3d-71b56fc39e01"
+    ]
+  },
+  {
+    "id": "spec-proto-001",
+    "title": "Protocol — עדכון protocol.py + Hub לתמיכה במכשירים חדשים",
+    "description": "הוספת parse_mic_telemetry, parse_pedal_event, pack_progress_command ל-protocol.py. עדכון SerialBridge._dispatch לטיפול בסוגי הודעות חדשים. עדכון Hub firmware להעביר את הטלמטריות החדשות ל-Mac.",
+    "priority": 4,
+    "technical_specs": {
+      "design_patterns": [],
+      "constraints": [
+        "MSG_MIC_TELEMETRY=0x02",
+        "MSG_PEDAL_EVENT=0x03",
+        "MSG_CMD_PROGRESS=0x13",
+        "MSG_NET_STATUS=0x14"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-fw-001",
+      "spec-fw-002",
+      "spec-fw-003",
+      "spec-fw-004"
+    ]
+  },
+  {
+    "id": "spec-proto-002",
+    "title": "Hub — Dynamic Effect Discovery (MSG_EFFECT_LIST)",
+    "description": "מנגנון שב-boot כל מכשיר LED שולח רשימת אפקטים נתמכים ל-Hub, ו-Hub מעביר ל-Mac. הוספת MSG_EFFECT_LIST=0x22. הממשק טוען את הרשימה דינמית ולא מ-hardcode.",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "MSG_EFFECT_LIST=0x22",
+        "payload: deviceId(H) count(B) [effectId(B) name(8s)]×N",
+        "שמור ב-device_registry per device"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-proto-001"
+    ]
+  },
+  {
+    "id": "spec-eng-001",
+    "title": "Engine — תמיכה בסנסורים חדשים (Mic, Pedal, Staff extended)",
+    "description": "הרחבת engine.py: on_mic_telemetry, on_pedal_event. עדכון _check_trigger לתמוך בסוגי trigger: mic_telemetry, pedal_event. עדכון device_registry לנהל slots עבור mic ו-pedal.",
+    "priority": 4,
+    "technical_specs": {
+      "constraints": [
+        "trigger type: mic_telemetry — תנאי על rms/peak/frequency",
+        "trigger type: pedal_event — תנאי על eventType",
+        "trigger type: staff_telemetry — תוסיף throw/catch/spin_direction/orientation/impact"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-proto-001",
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    ]
+  },
+  {
+    "id": "spec-eng-002",
+    "title": "Engine — SHOW TIMER ו-ACCUMULATOR logic",
+    "description": "הוספת ShowTimer ו-Accumulator כ-entities ב-engine.py. ShowTimer: reset all timelines, מתחיל countdown, יורה done event. Accumulator: צובר pulses, מנהל value 0-100, יורה scored/climax, decay support.",
+    "priority": 4,
+    "technical_specs": {
+      "design_patterns": [
+        "State Machine"
+      ],
+      "constraints": [
+        "ShowTimer: on_start=reset_all מפסיק כל Timeline רץ, מחזיר מכשירים ל-IDLE",
+        "Accumulator: decay_rate % לשנייה, reset אוטומטי כש-ShowTimer done",
+        "ACCUMULATOR מחובר ל-Progress Bar דרך value port (0-100 → LED count)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-eng-001"
+    ]
+  },
+  {
+    "id": "spec-eng-003",
+    "title": "Engine — IDLE state management",
+    "description": "הוספת IDLE state per-device ל-engine. כשאין Timeline רץ על מכשיר — Engine שולח את פקודת ה-IDLE המוגדרת. כשShowTimer מאפס — כל המכשירים חוזרים ל-IDLE שלהם.",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "IDLE מוגדר per-device בNumber JSON",
+        "ברירת מחדל: OFF (אם לא הוגדר IDLE)",
+        "IDLE נכנס לתוקף רק כש-SEQUENCE נגמר — לא בין בלוקים"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-eng-002"
+    ]
+  },
+  {
+    "id": "spec-ui-001",
+    "title": "Node Editor — Canvas Infrastructure",
+    "description": "בניית קנבס Node Editor: drag-drop נודים מ-sidebar, חיבור ויירים, pan/zoom, undo/redo (50 פעולות), autosave עם debounce. שפה עיצובית לפי spec (Alef + IBM Plex Mono, color tokens).",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "React Flow או vanilla canvas"
+      ],
+      "constraints": [
+        "זרימה שמאל לימין",
+        "Undo/Redo 50 פעולות",
+        "autosave debounce 1s",
+        "Light mode בלבד, RTL",
+        "color tokens לפי spec section 10.3"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-eng-001"
+    ]
+  },
+  {
+    "id": "spec-ui-002",
+    "title": "Node Editor — כל הנודים (SENSOR, TRIGGER, COMBINE, EVENT, SEQUENCE, SHOW TIMER, ACCUMULATOR, IDLE)",
+    "description": "מימוש כל סוגי הנודים לפי spec: side panel לכל נוד, validation חיבורים, צבעים סמנטיים (סגול/כתום/ירוק/אפור). SEQUENCE עם inline timeline expansion.",
+    "priority": 5,
+    "technical_specs": {
+      "constraints": [
+        "SENSOR: פלטים לפי מכשיר (staff/mic/pedal)",
+        "TRIGGER: range/threshold, debounce, cooldown, priority, [TEST] button",
+        "SEQUENCE: timeline עם STATIC/REACTIVE/EFFECT blocks, fade_out per-block",
+        "ACCUMULATOR: ויזואל progress bar חי בזמן הופעה",
+        "Frozen node: opacity נמוך, VALIDATE מתעלם"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-ui-001"
+    ]
+  },
+  {
+    "id": "spec-ui-003",
+    "title": "Node Editor — Compiler + Validator + OTA Upload",
+    "description": "שכבת קומפילר: קנבס → JSON payload (minified, max 64KB). Validation חוסם: מקורות כפולים, priority שווה, חיבורים לא חוקיים. OTA Upload דרך Serial ל-Brain. Snapshots אוטומטיים לפני OTA.",
+    "priority": 5,
+    "technical_specs": {
+      "constraints": [
+        "payload format לפי spec section 12.4",
+        "Frozen nodes נשלחים עם frozen:true",
+        "Snapshots: 10 אחרונים + REVERT",
+        "OTA חסום עד validation נקי",
+        "payload limit 64KB"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-ui-002",
+      "spec-eng-003"
+    ]
+  },
+  {
+    "id": "spec-ui-004",
+    "title": "Show Runner (/show) — Lineup + Dashboard",
+    "description": "מסך /show: ליינאפ drag-and-drop של נאמברים, transition_fade per-נאמבר. SHOW MODE: דשבורד בריאות רשת per-device (active/planned/disconnected, signal strength, ערכי סנסור בזמן אמת). ניווט בין נאמברים דרך Pedal (double/triple שמורים למערכת).",
+    "priority": 4,
+    "technical_specs": {
+      "constraints": [
+        "transition_fade ברירת מחדל 500ms",
+        "Brain מבצע lerp בין IDLE states",
+        "double/triple Pedal שמורים — לא זמינים בקנבס",
+        "DEV ↔ SHOW MODE toggle עם אישור modal",
+        "OTA UPLOAD מושבת ב-SHOW MODE"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-ui-003"
+    ]
+  },
+  {
+    "id": "spec-brain-001",
+    "title": "החלטה ארכיטקטורית: Engine על Mac vs Brain",
+    "description": "הגדרת מדיניות: הספציפיקציה מניחה Brain כ-runtime engine (data-driven). הקוד הקיים מריץ engine על Mac. לפני פיתוח הקומפילר — להחליט: (A) Engine נשאר על Mac, Brain כגשר, (B) Brain הופך runtime engine, Mac שולח JSON payload.",
+    "priority": 5,
+    "technical_specs": {
+      "constraints": [
+        "אופציה A: פשוט יותר, latency גבוה יותר, תלות ב-Mac בהופעה",
+        "אופציה B: מורכב יותר, רובוסטי יותר, מאפשר standalone",
+        "ההחלטה קובעת את כל ארכיטקטורת הקומפילר"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "spec-test-001",
+    "title": "בדיקה: Staff Extended Telemetry end-to-end",
+    "description": "אימות חומרה לכל הפרמטרים החדשים: (1) לזרוק Staff — throw=1, catch=1, (2) לסובב CW/CCW — spin_direction נכון, (3) להחזיק אנכי/אופקי — orientation נכון, (4) הלם בקיר — impact=1. לאמת שהערכים מגיעים ל-engine ומפעילים Timeline.",
+    "priority": 5,
+    "technical_specs": {
+      "constraints": [
+        "כל בדיקה: מכשיר מחובר + console log ב-Mac",
+        "throw detection latency < 100ms",
+        "false positive rate < 5%"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-fw-001",
+      "spec-proto-001",
+      "spec-eng-001"
+    ]
+  },
+  {
+    "id": "spec-test-002",
+    "title": "בדיקה: Progress Bar — progress mode + solid mode",
+    "description": "(1) שלח value=0,25,50,75,100 — בדוק מספר LEDs נכון. (2) שלח solid color — בדוק כל 100 LEDs דולקים. (3) בדוק fade transition. (4) בדוק IDLE (כבוי ב-default).",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "ESP32-C3 + 100 WS2812B מחובר פיזית"
+      ]
+    },
+    "status": "BLOCKED",
+    "dependencies": [
+      "spec-fw-002",
+      "spec-proto-001"
+    ]
+  },
+  {
+    "id": "spec-test-003",
+    "title": "בדיקה: Microphone — threshold calibration",
+    "description": "(1) רעש שקט — rms < baseline. (2) מחיאות כפיים — peak > threshold. (3) בדוק frequency detection על צליל ידוע (טון 440Hz). (4) בדוק שTRIGGER מופעל נכון ב-engine.",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "tone generator app לאימות frequency",
+        "baseline_rms להגדיר ב-Config.h לפי environment"
+      ]
+    },
+    "status": "BLOCKED",
+    "dependencies": [
+      "spec-fw-003",
+      "spec-proto-001",
+      "spec-eng-001"
+    ]
+  },
+  {
+    "id": "spec-test-004",
+    "title": "בדיקה: Pedal — כל event types + LED status",
+    "description": "(1) short press — eventType=short. (2) long press — eventType=long. (3) double — double. (4) triple — triple. (5) ניתוק Hub — נורה אדומה. (6) מכשיר חסר — נורה צהובה. (7) רשת תקינה — נורה ירוקה.",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "timing: short < 300ms, long > 700ms, double window 400ms",
+        "בדוק edge case: press בדיוק על threshold"
+      ]
+    },
+    "status": "BLOCKED",
+    "dependencies": [
+      "spec-fw-004",
+      "spec-proto-001"
+    ]
+  },
+  {
+    "id": "spec-test-005",
+    "title": "בדיקה: SHOW TIMER + ACCUMULATOR integration",
+    "description": "(1) הפעל SHOW TIMER — בדוק שכל Timelines פעילים נעצרים, מכשירים חוזרים ל-IDLE. (2) צבור pulses ל-ACCUMULATOR — בדוק progress bar עולה. (3) הגע ל-100% — בדוק climax event. (4) decay mode — בדוק ירידה ב-% לשנייה. (5) ShowTimer done — Accumulator מאופס.",
+    "priority": 4,
+    "technical_specs": {
+      "constraints": [
+        "Progress Bar מחובר פיזית לבדיקה ויזואלית",
+        "בדוק decay rates: slow/medium/fast"
+      ]
+    },
+    "status": "BLOCKED",
+    "dependencies": [
+      "spec-eng-002",
+      "spec-fw-002"
+    ]
+  },
+  {
+    "id": "spec-test-006",
+    "title": "בדיקה: Node Editor — Compiler validation",
+    "description": "(1) בנה קנבס תקין — VALIDATE עובר, OTA זמין. (2) חבר 2 מקורות לאותו מכשיר — VALIDATE חוסם. (3) חבר priority שווה — חוסם. (4) SENSOR ישירות ל-COMBINE — חוסם. (5) payload > 64KB — חוסם. (6) Frozen node — VALIDATE מתעלם.",
+    "priority": 4,
+    "technical_specs": {
+      "constraints": [
+        "כל שגיאה חוסמת מופיעה ברשימה ברורה",
+        "לבדוק גם אזהרות לא חוסמות (ויירים לפורט לא מוגדר)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-ui-003"
+    ]
+  },
+  {
+    "id": "spec-test-007",
+    "title": "בדיקה: Show Runner — transition בין נאמברים",
+    "description": "(1) הכן 2 נאמברים עם IDLE שונים. (2) נווט עם Pedal double — בדוק fade מעבר. (3) triple — חזרה להתחלה. (4) בדוק שdouble/triple לא מופעלים ב-canvas של נאמבר. (5) בדוק SHOW MODE: OTA מושבת, קנבס read-only.",
+    "priority": 3,
+    "technical_specs": {
+      "constraints": [
+        "transition_fade: 500ms default — בדוק ויזואלית",
+        "lerp בין IDLE states על Brain — בדוק אם מיושם"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "spec-ui-004",
+      "spec-test-005"
+    ]
+  },
+  {
+    "id": "650630b1-4efb-4bb8-9b88-6627f31df02e",
+    "title": "UI Number Design & System Verification - Trigger-Based Staff Angle Colors",
+    "description": "Design and flash a performance number using the Node Editor interface. The number must program the staff to light up in green during rotation when the angle is between 20 and 340 degrees, and red otherwise. Angle 0/360 represents vertical staff. During the interaction with the UI/system, document any errors or functional gaps, formulate a plan to fix them, and execute the corrective measures.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Trigger-Action Pattern",
+        "Reactive State Machine",
+        "Self-Healing / Diagnostics"
+      ],
+      "constraints": [
+        "Green LED color: [20, 340] degrees",
+        "Red LED color: [0, 20) and (340, 360] degrees",
+        "0/360 degrees = vertical staff status representation",
+        "OTA validation constraint: compile and upload via WebSocket/Serial payload",
+        "System Verification: Document any UI/API issues, create a resolution plan, and implement fixes to the codebase"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "760731c2-5f68-5cc9-9c99-7738f42ef03f",
+    "title": "Smart Staff — IMU Motion Detection",
+    "description": "מימוש אלגוריתם סינון רעשים ושערוך תנועה MPU6500 על Core 0 ב-100Hz מבוסס Madgwick Filter ו-Beta Ramping.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "Wire",
+        "FastLED",
+        "Arduino"
+      ],
+      "design_patterns": [
+        "Sensor Fusion",
+        "FreeRTOS Pinned Task",
+        "Thread-Safe Mutex Sharing",
+        "Dead Reckoning"
+      ],
+      "constraints": [
+        "MPU6500 registers config: 16g and 2000 dps",
+        "Madgwick Filter update at 100Hz on Core 0",
+        "Mutex access with timeout=0 on both cores",
+        "Beta Ramping linear speed 0.005 per step",
+        "Continuous in-use gyro calibration when static",
+        "Jerk spike filter threshold 50.0 g/s with actual dt",
+        "Dynamic angle window mapping spin speed (0-2000 dps) to 10-60 degrees"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": []
+  },
+  {
+    "id": "lights-fw-001",
+    "title": "בקרי פנסים — PWM Firmware S3 Target and Configuration",
+    "description": "עדכון קושחת ה-PWM לתמיכה ב-S3: מיפוי פינים (GPIO 4,5,6,7), יצירת target ב-platformio.ini, ומימוש מנגנון נעילת מקור פקודה (Source Priority FSM) למניעת התנגשות בין הגשר ל-Staff.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [
+        "Source Priority FSM"
+      ],
+      "constraints": [
+        "Pins: W=4, R=5, G=6, B=7",
+        "Priority lock timeout = 5000ms"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": []
+  },
+  {
+    "id": "lights-bridge-002",
+    "title": "גשר דוכן — Booth Bridge Firmware & HTML UI",
+    "description": "פיתוח קושחת הגשר: הקמת SoftAP בערוץ 1, שרת HTTP המגיש ממשק משתמש פרימיום (Dark Mode, Glassmorphism, Color Pickers) ומקבל פקודות ב-POST, ומשדר פקודות PWMCommand ב-ESP-NOW לפנסים.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "WebServer",
+        "WiFi"
+      ],
+      "design_patterns": [
+        "Gateway Pattern",
+        "REST API"
+      ],
+      "constraints": [
+        "Channel 1 AP",
+        "Responsive Mobile UI",
+        "Offline CSS/JS assets"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-fw-001"
+    ]
+  },
+  {
+    "id": "lights-staff-003",
+    "title": "סטאף — Staff Autonomous Mapping to Lights",
+    "description": "עדכון קושחת ה-Staff לשידור ישיר של PWMCommand לפנסים במצב אוטונומי (כאשר המוח מנותק). מיפוי ערכי ה-IMU (מהירות זוויתית, זווית ואירועי throw/catch/impact) ישירות לפקודות תאורה.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [
+        "State Machine",
+        "Autonomous Controller"
+      ],
+      "constraints": [
+        "Trigger on Hub timeout > 3000ms",
+        "Direct ESP-NOW mapping"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-fw-001"
+    ]
+  },
+  {
+    "id": "lights-engine-004",
+    "title": "מנוע שליטה — Control Engine Dynamic Mapping",
+    "description": "הרחבת מנוע ה-Timeline (engine.py) ב-Mac למיפוי דינמי של טלמטריית ה-Staff לפנסים: מהירות לעוצמת האור, זווית לרדיפה מרחבית (Corner Chase) בין 4 הבקרים, ומבזקי תאורה (Strobe) באירועי מכה או זריקה.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Observer Pattern"
+      ],
+      "constraints": [
+        "Real-time mapping latency < 20ms",
+        "4-zone layout mapping"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-fw-001"
+    ]
+  },
+  {
+    "id": "lights-test-005",
+    "title": "אימות ובדיקה — End-to-End System Testing & Verification",
+    "description": "בדיקה מקיפה של כל המערכת: אימות שליטה מהגשר, אימות נעילת עדיפויות (Priority Lock) כשה-Staff מתחיל לפעול, ובדיקת Failover (כיבוי ה-Mac ואימות שהפנסים נשלטים ישירות מה-Staff).",
+    "priority": 5,
+    "technical_specs": {},
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-bridge-002",
+      "lights-staff-003",
+      "lights-engine-004"
+    ]
+  },
+  {
+    "id": "lights-proto-006",
+    "title": "Protocol & Shared Configuration Alignment",
+    "description": "Update Protocol.h for both Bridge and Node to use light_cmd_t (5 bytes) and light_ack_t (5 bytes). Create credentials.h and config.h for wifi connection setup.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [],
+      "constraints": [
+        "light_cmd_t is exactly 5 bytes",
+        "light_ack_t is exactly 5 bytes",
+        "broadcast target is 0"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": []
+  },
+  {
+    "id": "lights-node-007",
+    "title": "Node Firmware Specification Alignment",
+    "description": "Align Node firmware with the spec: set NODE_ID (1-4) at compilation, 1kHz PWM frequency, immediate pin pull-low on boot, state comparison (no action/ACK on duplicate commands), and send ESP-NOW ACK to the Bridge on state change.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now"
+      ],
+      "design_patterns": [
+        "State comparison",
+        "Non-blocking callbacks"
+      ],
+      "constraints": [
+        "LEDC frequency = 1000Hz",
+        "Pins: R=0, G=1, B=2, W=3 on C3",
+        "ACK is sent only if command differs from current status"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-proto-006"
+    ]
+  },
+  {
+    "id": "lights-bridge-008",
+    "title": "Bridge Firmware Specification Alignment",
+    "description": "Align Bridge firmware: multi-network wifi connection with AP fallback (SSID: MagLight/magzimus), static IP per network, serve simplified HTML console at /, HTTP endpoint /color, Serial JSON interface, and ESP-NOW ACK reception callback with 200ms timeout prints.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_now",
+        "WebServer",
+        "WiFi"
+      ],
+      "design_patterns": [
+        "Gateway Pattern",
+        "Asynchronous Timeout Tracker"
+      ],
+      "constraints": [
+        "Try network 0 (5s) -> network 1 (5s) -> fallback to AP channel 1",
+        "HTTP API: POST /color",
+        "Serial commands match HTTP JSON, output [ACK] and [TIMEOUT] messages"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-proto-006"
+    ]
+  },
+  {
+    "id": "lights-test-009",
+    "title": "End-to-End Lights System Verification",
+    "description": "Verify the whole system: HTTP console, Serial inputs, connection fallback, and ACK / Timeout tracking via Serial interface.",
+    "priority": 5,
+    "technical_specs": {},
+    "status": "COMPLETED",
+    "dependencies": [
+      "lights-node-007",
+      "lights-bridge-008"
+    ]
+  },
+  {
+    "id": "dmx-bringup-001",
+    "title": "DMX Bring-Up - Hardware Verification & Transmission Test",
+    "description": "Verify DMX512 transmission from ESP32-S3 SuperMini to MAX485. Steps: Flash dmx_test.ino, monitor Serial, measure voltages on A/B pins, and test with DMX fixture.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_dmx"
+      ],
+      "constraints": [
+        "DMX_NUM_2, TX = GPIO17, EN = GPIO18 (fixed HIGH)",
+        "Verify Serial output @ 115200 baud"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": []
+  },
+  {
+    "id": "i2c-recovery-001",
+    "title": "Staff Firmware — I2C Recovery Mechanism",
+    "description": "מימוש מנגנון זיהוי תקיעה בקווי ה-I2C (SDA/SCL) של ה-MPU6050/6500 וביצוע Reset פיזי/לוגי לאפיק למניעת קריסות של הבקר בשטח.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "Wire"
+      ],
+      "design_patterns": [
+        "Watchdog Timer",
+        "Self-Healing"
+      ],
+      "constraints": [
+        "I2C Bus Clear sequence",
+        "Non-blocking sensor re-init"
+      ]
+    },
+    "status": "PENDING_RANKING",
+    "dependencies": [
+      "760731c2-5f68-5cc9-9c99-7738f42ef03f"
+    ]
+  },
+  {
+    "id": "battery-telemetry-002",
+    "title": "Staff Firmware — Battery Telemetry Integration",
+    "description": "ניטור מתח סוללה באמצעות כניסה אנלוגית (ADC) של ה-ESP32, הוספת הנתון למבנה ה-StaffTelemetry ושידורו ל-Hub לטובת ניטור בזמן אמת בווב-אפליקציה.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_adc_cal"
+      ],
+      "design_patterns": [],
+      "constraints": [
+        "Voltage divider calibration",
+        "Update StaffTelemetry struct size (+1 byte or use flags)"
+      ]
+    },
+    "status": "PENDING_RANKING",
+    "dependencies": [
+      "b1a2c3d4-0001-0000-0000-000000000001"
+    ]
+  },
+  {
+    "id": "dmx-node-003",
+    "title": "DMX Node — ESP-NOW to DMX512 Converter Firmware",
+    "description": "פיתוח קושחה ל-Node קצה (ESP32-S3 + MAX485) המקבל פקודות ESP-NOW קיימות (כמו PWMCommand) ומתרגם אותן מקומית לשידור DMX512 קווי עבור פנסי במה ומכשירי אפקטים מסחריים.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [
+        "esp_dmx"
+      ],
+      "design_patterns": [
+        "Translator Pattern",
+        "Adapter Pattern"
+      ],
+      "constraints": [
+        "MAX485 TX driver enable fixed HIGH",
+        "Map ESP-NOW RGBW values directly to DMX channels locally"
+      ]
+    },
+    "status": "PENDING_RANKING",
+    "dependencies": [
+      "dmx-bringup-001",
+      "lights-proto-006"
+    ]
+  },
+  {
+    "id": "net-dash-001",
+    "title": "Network Dashboard & Device Monitor UI",
+    "description": "יצירת ממשק HTML כהה בעיצוב Glassmorphism להצגת מצב מכשירים חיוני ופיענוח תעבורת רשת (Tx/Rx) בזמן אמת, כולל שדרוג שרת ה-Flask לניהול מצב בזיכרון והגשת הקבצים.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "flask-socketio"
+      ],
+      "design_patterns": [
+        "In-Memory State Store",
+        "WebSocket Realtime Stream",
+        "Glassmorphism UI"
+      ],
+      "constraints": [
+        "Offline timeout = 5000ms",
+        "RTL dark glassmorphism styling",
+        "Live Tx/Rx traffic console"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "measure-ui-001",
+    "title": "ממשק תפעול לקמפיין מדידות (SmartStaff_Measurement_Campaign_v2)",
+    "description": "control/ui/measure.html — הצגת טלמטריית IMU חיה (Master בלבד כרגע), שליטת הקלטה מתויגת-שלב (M1a...M5) עם רישום גולמי server-side ל-JSONL, סימון ייחוס '0°', וייצוא. UI בהשראת control/ui הישן ב-Smart_Staff, מנוע הנתונים (Socket.IO telemetry stream) תואם לפרויקט הנוכחי בלבד.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "flask-socketio"
+      ],
+      "design_patterns": [
+        "Server-side raw append-only logging",
+        "WebSocket Realtime Stream",
+        "Glassmorphism UI (עקבי עם dashboard.html)"
+      ],
+      "constraints": [
+        "IMU יחיד (Master) בשלב זה — אינטגרציית Slave מותנית בתוצאות המדידות",
+        "אין חישוב/ניתוח בממשק — רק תיעוד גולמי",
+        "אין שדה sequence ב-StaffTelemetry הנוכחי — לא ניתן למדוד % אובדן אמיתי, רק פערי זמן הגעה"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "net-dash-001"
+    ]
+  },
+  {
+    "id": "bank-engine-001",
+    "title": "Backend Engine — Active Bank State & Event Router",
+    "description": "הרחבת ה-Engine (Python): ניהול משתנה מצב Active Bank, בניית Event Router שממפה StaffTelemetry (Throw, Catch, Spin) לפקודות רשת (Relay, DMX, תרחישים) בהתאם למטריצת המיפוי של ה-Bank הפעיל, והוספת REST/WS APIs לעדכון ושמירת Banks.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [
+        "flask",
+        "flask-socketio"
+      ],
+      "design_patterns": [
+        "State Pattern",
+        "Event Router/Dispatcher"
+      ],
+      "constraints": [
+        "JSON storage for Banks mapping",
+        "Fast dispatch < 20ms",
+        "Support existing action triggers"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "spec-eng-001"
+    ]
+  },
+  {
+    "id": "bank-manager-ui-001",
+    "title": "Bank Manager Web UI (Preset Groups)",
+    "description": "פיתוח ממשק Web המאפשר יצירה וניהול של Preset Banks. בכל Bank יופיעו הטריגרים הקבועים (Fast Spin, Toss, Roll, Catch, Static Horizontal, Static Vertical). לכל טריגר ניתן לבחור פעולה מהמאגר. כולל כפתור 'Set Active Bank' לשינוי המצב בשרת.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [
+        "React",
+        "tailwindcss"
+      ],
+      "design_patterns": [
+        "CRUD Interface"
+      ],
+      "constraints": [
+        "Integrate with the Bank APIs created in bank-engine-001",
+        "Google Material Design 3 guidelines"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "bank-engine-001"
+    ]
+  },
+  {
+    "id": "bank-edge-backend-002",
+    "title": "Backend Engine — Connection Watchdog & Trigger Priority",
+    "description": "הוספת מנגנון Timeout ל-Engine: אם חולפות 3 שניות ללא StaffTelemetry, חזרה ל-IDLE State. הוספת תמיכה בניתוב (Dispatch) מבוסס עדיפויות כך שטריגרים כפולים (למשל Spin + Toss) ייפתרו לפי ה-Priority הגבוה יותר, ויקטעו פעולות ברמת עדיפות נמוכה יותר.",
+    "priority": 5,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Watchdog Timer",
+        "Priority Queue / State Interruption"
+      ],
+      "constraints": [
+        "Timeout is 3000ms",
+        "Priority resolution logic in the Bank router"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "bank-engine-001"
+    ]
+  },
+  {
+    "id": "bank-edge-ui-002",
+    "title": "Bank Manager UI — Priority Field",
+    "description": "עדכון מודל ה-Action ב-BankManager (bank.html) כדי לתמוך בהזנת מספר Priority (עדיפות) לכל בלוק-טריגר, ושמירתו במבנה ה-JSON של ה-Bank.",
+    "priority": 4,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [],
+      "constraints": [
+        "Include priority value in the saved mapping JSON"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "bank-manager-ui-001",
+      "bank-edge-backend-002"
+    ]
+  },
+  {
+    "id": "bank-edge-ui-003",
+    "title": "Bank Manager UI — Visual Timeline Blocks",
+    "description": "הוספת רצועת זמן ויזואלית (Timeline Track) במודל עריכת הפעולות (bank.html). כל שלב יוצג כקובייה על ציר X לפי פרמטר ה-t שלו. המטרה היא להפוך את הממשק לדמוי עורך וידאו מינימליסטי, עם פופאפ או חלונית צד לעריכת פרמטרי הקוביה בלחיצה.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Visual Timeline",
+        "Component isolation"
+      ],
+      "constraints": [
+        "Vanilla JS/CSS",
+        "Visual feedback for step positions relative to t=0"
+      ]
+    },
+    "status": "COMPLETED",
+    "dependencies": [
+      "bank-edge-ui-002"
+    ]
+  },
+  {
+    "id": "bank-edge-ui-004",
+    "title": "Bank Manager UI — Timeline Drag & Drop and Single Editor",
+    "description": "שדרוג מודל ה-Timeline לפי אישור המשתמש: הצגת כרטיסיית עריכה אחת בלבד במקום רשימה. לחיצה על קובייה טוענת אותה לכרטיסייה, לחיצה על ריק מאפשרת הוספת קובייה חדשה. הוספת תמיכה ב-Drag & Drop של הקוביות לאורך ה-Timeline כדי לסדר את המיקומים (t) מחדש.",
+    "priority": 3,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "HTML5 Drag and Drop API",
+        "Single Active Component State"
+      ],
+      "constraints": [
+        "Vanilla JS/CSS",
+        "Must cleanly sync UI state with modalBlocks JSON array"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "bank-edge-ui-003"
+    ]
+  },
+  {
+    "id": "hub-reconnect-001",
+    "title": "Hub Serial — Auto-Detect + Auto-Reconnect + UI Controls",
+    "description": "תוקן באג: bridge (Serial Mac↔Hub) נוצר פעם אחת בהפעלת השרת עם פורט קבוע ב-SERIAL_PORT (ברירת מחדל /dev/tty.usbserial-0001, לא קיים בפועל) — כשל נכשל בשקט והממשק דיווח 'hub not connected' לצמיתות בלי קשר למצב הפיזי, וללא reconnect אחרי ניתוק/חיבור מחדש תוך כדי ריצה. נוסף auto-detect פורט (מדורג לפי שבב UART ידוע), watchdog לreconnect אוטומטי כל 2s, ו-3 endpoints (/api/hub/{status,scan,connect,disconnect}) + widget בולט ב-nav.js (נקודת סטטוס + באנר עליון אדום + כפתורי חפש/התחבר/נתק).",
+    "priority": 1,
+    "technical_specs": {
+      "required_libraries": [
+        "pyserial (serial.tools.list_ports, כבר בשימוש)"
+      ],
+      "design_patterns": [
+        "Background watchdog thread",
+        "Idempotent connect",
+        "Optimistic UI polling"
+      ],
+      "constraints": [
+        "לא לגעת בפורמט הפרוטוקול הקיים",
+        "לא להוסיף socket.io לדפים שלא טוענים אותו כבר — polling עצמאי"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "staff-generic-fx-001",
+    "title": "מנוע אפקטים גנרי מבוסס FastLED ל-Staff (Master+Slave)",
+    "description": "החלטת ארכיטקטורה עם המשתמש: אפקטי LED לא יהיו עוד רק 6 פקודות קבועות (Solid/Sparkle/Flame/Rainbow/Vertical/Off), אלא מנוע גנרי מבוסס יכולות FastLED (palettes, inoise8, beatsin8/16) עם פרמטרים משותפים (templateId, paletteId, speed, intensity, param1, param2) — כך שאפשר ליצור אפקטים חדשים ע\"י שמירת פרסט פרמטרים, בלי flash חוזר. מומש כתוספת נפרדת ומבודדת (MSG_CMD_EFFECT חדש) בלי לגעת ב-6 האפקטים הקיימים/HubCommand/SyncPacket — לפי לקח מתועד ב-DONE.md 2026-06-08 (התנגשות גודל struct בין HubCommand ל-SyncPacket שבֵרה סנכרון Master↔Slave). כולל מיראור למסלה (EffectSyncPacket חדש, msgType-guarded, לא שולח שני sync packets באותו tick — לקח מהתנגשות רדיו בדוח 2026-07-19).",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": ["FastLED (palettes, inoise8, beatsin8/16 — כבר בשימוש)"],
+      "design_patterns": [
+        "Additive protocol extension (new msgType, לא מוטציה של structs קיימים)",
+        "Explicit msgType-first dispatch guard (לא size-only) — לפי לקח SyncPacket/HubCommand"
+      ],
+      "constraints": [
+        "לשמר את מבנה/לוגיקת התקשורת הקיימת במלואה (Mac↔Hub serial, Hub↔ESP-NOW)",
+        "לא לשנות HubCommand/SyncPacket/6 האפקטים הקיימים",
+        "לא להוסיף יותר מ-esp_now_send אחד לtick על המאסטר (עומס רדיו)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "effects-lab-ui-001",
+    "title": "Effects Lab — מודול UI לעיצוב ושמירת אפקטים",
+    "description": "מודול חדש בממשק (`/effects.html`): עורך אפקטים לפי מכשיר (Staff generic templates / Staff legacy / DMX / WRGB / Progress Bar), תצוגה מקדימה בקנבס, שמירה כפריסט בספרייה חדשה (`effects/effects.json`), ובדיקה חד-פעמית מול חומרה אמיתית. מרחיב את staff-generic-fx-001.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Atomic JSON-file CRUD store (אותו דפוס כמו bank_manager.BankStore)",
+        "Canvas approximation preview — לא רינדור firmware מדויק"
+      ],
+      "constraints": [
+        "לא לגעת בפרוטוקול/firmware — רק שכבת אחסון+UI מעל מה שכבר קיים",
+        "device-scoped: לא לאפשר לבחור אפקט גנרי על מכשיר שלא תומך בו"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": ["staff-generic-fx-001"]
+  },
+  {
+    "id": "effects-reactive-bank-001",
+    "title": "IMU-Reactive Effects + חיבור אפקטים ל-Banks כפקודה",
+    "description": "לפי משוב משתמש: (1) הוסרו שדה מכשיר-פרטני/Target מ-Effects Lab — נשאר רק סוג-מכשיר; ה-Target/Policy נקבעים ב-Bank. (2) נוסף קישור IMU-reactive — פרמטר אחד (speed/intensity/param1) יכול לעקוב אחרי סיגנל IMU חי (מהירות/זווית/אוריינטציה/כיוון סיבוב) שנפתר מקומית על ה-Master, בלי תעבורת רדיו נוספת. (3) Bank action step חדש (cmd:'EFFECT') שמפנה לפריסט שמור בספרייה.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Resolve-locally-on-Master (no extra ESP-NOW traffic for reactive params)",
+        "EFFECT step type בערוץ ה-_execute_step הקיים — אין מסלול דיספאץ' נפרד"
+      ],
+      "constraints": [
+        "EffectCommand גדל 10→12 בייט — עדיין guarded ע\"י msgType מפורש, לא size-only",
+        "לא לשנות שום דבר בשליחת HubCommand/SyncPacket הקיימים"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": ["staff-generic-fx-001", "effects-lab-ui-001"]
+  },
+  {
+    "id": "fix-demo-number-autoload-002",
+    "title": "ביטול קבוע של דמו red-blue-off שקוטע פקודות ידניות",
+    "description": "NUMBER_PATH ברירת מחדל הצביע על numbers/example.json (אירוע speed>2.0 INTERRUPT קבוע) שנטען תמיד בהפעלת השרת, בלי תלות בעמוד — קטע כל פעילות ידנית/Bank/Effects Lab ברגע שהסטאף זז. תוקן בשורש: ברירת מחדל שונתה ל-stress-test.json (ריק), ו-example.json עצמו רוקן. Bank/reactive-lights לא תלויים ב-Numbers, לא נפגעו.",
+    "priority": 1,
+    "technical_specs": {"required_libraries": [], "design_patterns": [], "constraints": ["לא לפגוע ב-Bank triggers / reactive lights — מסלולים נפרדים ב-Engine"]},
+    "status": "DONE",
+    "dependencies": []
+  },
+  {
+    "id": "effects-pixel-taxonomy-remap-002",
+    "title": "מיפוי מחדש: 5 תבניות Pixel Effects לפי EffectComposer Proposal §5",
+    "description": "מיפוי/שינוי שם ל-6 התבניות הקיימות ב-genericEffect() (FX_PALETTE_CYCLE..FX_THEATER_CHASE) כך שיתאימו לטקסונומיה הנקייה של docs/EffectComposer_Proposal_v0.1.md §5: Solid, Gradient, Wave, Fade, Sparkle (+מה שנשאר מה-6 בלי מקבילה ישירה, כבונוס). כולל חשיפת פרמטרים דינמית ב-effects.html לפי מה שכל תבנית מכריזה (עקרון WLED metadata-hiding).",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Self-declaring params per template (WLED/Pixelblaze convention)"
+      ],
+      "constraints": [
+        "FX_* IDs נשמרים כמספרים ב-effects/effects.json הקיים — נדרש migration script/שמירת תאימות, לא רק שינוי enum",
+        "לא לגעת ב-HubCommand/SyncPacket הקיימים — רק ב-genericEffect() ובטבלת הפרמטרים ב-UI"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "staff-generic-fx-001",
+      "effects-lab-ui-001"
+    ]
+  },
+  {
+    "id": "dmx-channel-effect-engine-002",
+    "title": "מנוע ChannelEffect פרמטרי ל-DMX — רינדור מקומי בחומרה (EffectComposer Proposal §6)",
+    "description": "לפי docs/EffectComposer_Proposal_v0.1.md §6: הוספת מנוע אנימציה פרמטרי לבקר ה-DMX (S3 SuperMini), במקביל ל-genericEffect() של staff — לא engine-side streaming מה-Mac. struct חדש (ChannelEffectCommand: algorithm+params, פרופיל fixtures, מצב Unison/Spatial) + msgType ייעודי (לא size-only discriminator, לפי הלקח מ-staff-generic-fx-001) + לולאת רינדור מקומית ב-firmware/dmx/src/main.cpp שכותבת ל-dmxData כל tick לפי הפרמטרים, במקום המרה סטטית בלבד כמו היום.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "Local-render-from-parametric-command (אותו דפוס כמו Staff genericEffect — לא streaming רציף מה-Mac)"
+      ],
+      "constraints": [
+        "פרופיל ערוצים WWRGB_SF (WW,R,G,B,Strobe,Fade) עדיין לא אומת מול הפנס הפיזי בפועל (DIP switches/תפריט) — לא לקבע מספר/סדר ערוצים בקוד עד שהמשתמש יבדוק",
+        "msgType נפרד מ-DMXCommand הקיים (0x15) — למנוע התנגשות size-only כמו שתועד ב-staff-generic-fx-001",
+        "Unison/Spatial (chase בין fixtures) דורש ידיעת כתובות כל ה-fixtures בשרשרת, לא רק יעד יחיד"
+      ]
+    },
+    "status": "BLOCKED",
+    "dependencies": []
+  },
+  {
+    "id": "effects-lab-unify-color-003",
+    "title": "איחוד Legacy Effects לתוך Generic Templates + צבע חופשי + Flame/Vertical + עיצוב מחדש של Effects Lab",
+    "description": "לפי בקשת המשתמש: (1) הסרת טאב Legacy Effect — כל האפקטים (כולל Solid/Rainbow/Flame/Off/Vertical הישנים) הופכים לרשימה שטוחה אחת של Generic Templates. (2) EffectCommand מקבל שדות RGB אמיתיים (primary+secondary, לצד colorMode: palette/custom) — לא רק palette מובנה. (3) שני templates חדשים: FX_FLAME (חיקוי אש אמיתי, Fire2012-style) ו-FX_VERTICAL (ירוק/כחול לפי זווית, param1=חלון זווית) — NUM_EFFECT_TEMPLATES גדל ל-8, אין הגבלה מלאכותית על כמות. (4) עיצוב מחדש של control/ui/effects.html: LED preview כשורת LEDs אחת (לא מטריצה), היררכיה הפוכה — סליידרים/דרופדאונים/מתגים במרכז העמוד כתוכן ראשי, לא כרטיסייה צדדית 360px. (5) מתג toggle אמיתי (לא סליידר) בכל מקום שמייצג בחירה בינארית (למשל כיוון Gradient, colorMode).",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "CRGBPalette16 בנוי דינמית מ-primary/secondary כשcolorMode=custom — כל אלגוריתם קיים (ColorFromPalette-based) עובד בלי שינוי נוסף",
+        "Toggle switch component (checkbox מעוצב) לצד slider/dropdown"
+      ],
+      "constraints": [
+        "EffectCommand/EffectSyncPacket גדלים משמעותית (+7 בייט: colorMode+pr/pg/pb+sr/sg/sb) — msgType-checked, לא size-only, לפי הלקח מ-staff-generic-fx-001",
+        "FX_VERTICAL דורש currentAngle כפרמטר חדש ל-genericEffect() — יש global lastAngle זמין בשתי נקודות הקריאה ב-main.cpp",
+        "דורש צריבה מחדש ל-Master+Slave (יש חומרה מחוברת כרגע ב-USB)",
+        "לא לשבור effects/effects.json הקיים (עדיין ריק, אין presets לשמר, אבל family='legacy' ישן לא אמור עוד להיווצר מה-UI)"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "effects-pixel-taxonomy-remap-002"
+    ]
   }
 ]

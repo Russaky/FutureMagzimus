@@ -22,12 +22,25 @@ static void sendIdentity() {
     esp_now_send(broadcast, (const uint8_t *)&resp, sizeof(resp));
 }
 
+static volatile uint32_t s_lastShowCmdMs = 0;
+static const uint8_t BRIDGE_MAC[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+
 static void onRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
-    if (len == sizeof(PWMCommand)) {
-        PWMCommand cmd;
+    if (len == sizeof(light_cmd_t)) {
+        light_cmd_t cmd;
         memcpy(&cmd, data, sizeof(cmd));
-        if (cmd.groupId != GROUP_ID) return;
-        if (cmd.targetId != 0xFF && cmd.targetId != EspNow::deviceId) return;
+        if (cmd.targetId != 0 && cmd.targetId != EspNow::deviceId) return;
+
+        bool isBridge = (memcmp(mac_addr, BRIDGE_MAC, 6) == 0);
+        uint32_t now = millis();
+        if (isBridge) {
+            if (s_lastShowCmdMs > 0 && (now - s_lastShowCmdMs) < 5000) {
+                return; // Ignored: Show Mode active
+            }
+        } else {
+            s_lastShowCmdMs = now; // Set/extend Show Mode lock
+        }
+
         xQueueSendFromISR(rxQueue, &cmd, nullptr);
     } else if (len == sizeof(DiscoverRequest)) {
         DiscoverRequest req;
@@ -43,13 +56,22 @@ void EspNow::init() {
     esp_now_init();
     esp_now_register_recv_cb(onRecv);
 
-    uint8_t mac[6];
-    esp_wifi_get_mac(WIFI_IF_STA, mac);
-    deviceId = mac[5];
+    deviceId = NODE_ID;
 
-    rxQueue = xQueueCreate(QUEUE_SIZE, sizeof(PWMCommand));
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, BRIDGE_MAC, 6);
+    peer.channel = ESPNOW_CHANNEL;
+    peer.encrypt = false;
+    esp_now_add_peer(&peer);
+
+    rxQueue = xQueueCreate(QUEUE_SIZE, sizeof(light_cmd_t));
 }
 
-bool EspNow::dequeue(PWMCommand &out) {
+bool EspNow::dequeue(light_cmd_t &out) {
     return xQueueReceive(rxQueue, &out, 0) == pdTRUE;
+}
+
+void EspNow::sendAck(uint8_t w, uint8_t r, uint8_t g, uint8_t b) {
+    light_ack_t ack = { deviceId, w, r, g, b };
+    esp_now_send(BRIDGE_MAC, (const uint8_t *)&ack, sizeof(ack));
 }

@@ -85,12 +85,13 @@ for name, frame, exp_type, exp_len in [
 
 section('3. Parse: telemetry + identity')
 
-raw_telem = bytes.fromhex('aa55011800018c02b260e13d190e064148095800043ff0fc04010200008e')
+# 25-byte StaffTelemetry: groupId=1 deviceId=0x028C speed=1.234 angle=45.68 flags=THROW
+raw_telem = bytes.fromhex('aa55011900018c02b6f39d3f46b63642640038ff2c019cffc800d4fe04012f')
 msg_t = raw_telem[2]
 pay_t = raw_telem[5:5+struct.unpack_from('<H', raw_telem, 3)[0]]
 d = proto.parse_staff_telemetry(pay_t)
-if d and d['deviceId'] == 0x028C:
-    ok('parse_staff_telemetry', f"id={d['deviceId']:04X} angle={d['angle']:.1f}° speed={d['speed']:.3f}")
+if d and d['deviceId'] == 0x028C and d['throw'] is True and d['orientation'] == 'vertical':
+    ok('parse_staff_telemetry', f"id={d['deviceId']:04X} angle={d['angle']:.1f}° speed={d['speed']:.3f} throw={d['throw']}")
 else:
     fail('parse_staff_telemetry', str(d))
 
@@ -348,6 +349,71 @@ try:
             fail('ROLE_CTRL true: AD44 not resumed')
     else:
         fail('NVS Role test: AD44 not in baseline', str([f'{i:04X}' for i in ids_base]))
+
+    # ── 10. Extended Telemetry — flags field (spec-test-001) ─────────────────
+    section('10. Extended Telemetry — Staff flags (spec-test-001)')
+
+    # Unit: parse returns all expected keys
+    import struct as _struct
+    raw_25 = _struct.pack('<BHffhhhhhhBB',
+        1,       # groupId
+        0x028C,  # deviceId
+        2.5,     # speed
+        45.0,    # angle
+        0, 0, 0, # acc
+        0, 0, 0, # gyro
+        0,       # motionType
+        0x05,    # flags: THROW(0x01) | SPIN_CW(0x04)
+    )
+    d25 = proto.parse_staff_telemetry(raw_25)
+    if d25 and all(k in d25 for k in ('flags','throw','catch','spin_cw','orientation','impact')):
+        ok('parse_staff_telemetry returns all flag keys')
+    else:
+        fail('parse_staff_telemetry missing keys', str(d25.keys() if d25 else 'None'))
+
+    if d25 and d25['throw'] and d25['spin_cw'] and not d25['catch'] and not d25['impact']:
+        ok('flags 0x05 decoded correctly', f"throw={d25['throw']} catch={d25['catch']} spin_cw={d25['spin_cw']}")
+    else:
+        fail('flags 0x05 decode error', str(d25))
+
+    if d25 and d25['orientation'] == 'horizontal':
+        ok('orientation bits (0x00) → horizontal')
+    else:
+        fail('orientation decode', f"got {d25.get('orientation') if d25 else 'None'}")
+
+    # Unit: all orientations
+    for flags_val, expected_orient in [(0x00, 'horizontal'), (0x08, 'horizontal'), (0x10, 'inverted')]:
+        raw_o = _struct.pack('<BHffhhhhhhBB', 1, 1, 0, 0, 0,0,0, 0,0,0, 0, flags_val)
+        do = proto.parse_staff_telemetry(raw_o)
+        got = do.get('orientation') if do else None
+        if got == expected_orient:
+            ok(f'orientation flags=0x{flags_val:02X} → {expected_orient}')
+        else:
+            fail(f'orientation flags=0x{flags_val:02X}', f'expected {expected_orient} got {got}')
+
+    # Live: read 5s of telemetry and report flag activity
+    flags_seen = {'throw':0,'catch':0,'spin_cw':0,'impact':0,'orientations':set()}
+    live_count = [0]
+
+    def _on_ext(d):
+        live_count[0] += 1
+        if d.get('throw'):   flags_seen['throw']   += 1
+        if d.get('catch'):   flags_seen['catch']   += 1
+        if d.get('spin_cw'): flags_seen['spin_cw'] += 1
+        if d.get('impact'):  flags_seen['impact']  += 1
+        if 'orientation' in d:
+            flags_seen['orientations'].add(d['orientation'])
+
+    b_ext = SerialBridge(HUB_PORT, 115200, _on_ext, lambda d: None)
+    b_ext.start()
+    print('  [live] סורק telemetry 5s — הזז את הסטאף...')
+    time.sleep(5)
+    b_ext.close()
+
+    if live_count[0] >= 10:
+        ok(f'Extended telemetry live', f'{live_count[0]} frames | throw={flags_seen["throw"]} catch={flags_seen["catch"]} spin={flags_seen["spin_cw"]} impact={flags_seen["impact"]} orient={flags_seen["orientations"]}')
+    else:
+        fail('Extended telemetry: insufficient frames', f'{live_count[0]} received')
 
     bridge.close()
 

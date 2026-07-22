@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Effects Lab — MAGZIMUS</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    .page-content { padding: 28px; max-width: 1400px; }
+
+    /* Sliders/dropdowns/toggles are the main content — centered column,
+       not squeezed into a side card. */
+    .lab-main { max-width: 760px; margin: 0 auto; }
+
+    canvas#led-preview { border-radius: 10px; border: 1px solid var(--outline-variant);
+                         display: block; width: 100%; background: #111; }
+    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .row label { font-size: .78rem; min-width: 90px; color: var(--on-surface-variant); }
+    input[type=range] { flex: 1; accent-color: var(--primary); }
+    .val-badge { font-size: .78rem; min-width: 60px; text-align: left; font-family: monospace; color: var(--on-surface); }
+    .swatch { width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--outline-variant); flex-shrink: 0; }
+    .section-label { font-size: .82rem; font-weight: 600; color: var(--on-surface-variant);
+                     text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+    .led-info { font-size: .72rem; color: var(--on-surface-variant); text-align: center; margin-top: 6px; }
+    .anim-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+
+    /* Real toggle switch — used for every binary choice (color source,
+       Gradient direction, etc.) instead of overloading a 0-255 slider. */
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; cursor: pointer; background: var(--outline-variant);
+                     transition: .15s; border-radius: 22px; }
+    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px;
+                            background: #fff; transition: .15s; border-radius: 50%; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+    /* Saved-presets chip bar — compact, not a persistent sidebar. */
+    .fx-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fx-chip {
+      display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
+      border: 1px solid var(--outline-variant); background: var(--surface); cursor: pointer;
+      font-size: .78rem; transition: all .15s;
+    }
+    .fx-chip:hover { background: var(--surface-variant); }
+    .fx-chip.active { background: var(--primary-container); border-color: var(--primary); color: var(--on-primary-container); }
+    .fx-chip button { background: none; border: none; cursor: pointer; opacity: .5; font-size: .75rem; padding: 0; }
+    .fx-chip button:hover { opacity: 1; }
+    .fx-empty { font-size: .78rem; color: var(--on-surface-variant); padding: 4px 2px; }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1 class="page-title">Effects Lab</h1>
+      <p class="page-subtitle">מעבדה לעיצוב, תצוגה מקדימה ושמירה של אפקטי LED — Staff / DMX / WRGB / Progress Bar</p>
+    </div>
+
+    <!-- Preview: single LED row (matches what the firmware algorithm actually
+         computes — NUM_LEDS=26 — not the 5-strip physical zigzag mirror). -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="section-label">Staff LED Preview (26 LEDs)</div>
+      <div class="anim-controls">
+        <button class="md-btn md-btn-tonal md-btn-sm" id="play-btn" onclick="togglePlay()">⏸ Pause</button>
+        <label style="font-size:.8rem;color:var(--on-surface-variant)">Anim Speed</label>
+        <input type="range" id="anim-speed" min="1" max="10" value="4" style="width:100px">
+        <span id="fps-label" style="font-size:.75rem;color:var(--on-surface-variant)">FPS: —</span>
+      </div>
+      <canvas id="led-preview" width="900" height="80"></canvas>
+      <div class="led-info" id="led-info">Hover over LED to inspect · תצוגה מקדימה בקנבס — קירוב, לא רינדור firmware מדויק</div>
+
+      <div class="divider"></div>
+      <div class="section-label" style="margin-top:4px">Color Preview (DMX / WRGB / Progress Bar)</div>
+      <canvas class="strip-canvas" id="wrgb-preview" width="600" height="40" style="border-radius:6px;border:1px solid var(--outline-variant);width:100%;height:40px;display:block"></canvas>
+    </div>
+
+    <!-- Saved presets: compact chip bar, not a persistent sidebar -->
+    <div class="md-card" style="margin-bottom:20px">
+      <div class="md-card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>אפקטים שמורים</span>
+        <button class="md-btn md-btn-tonal md-btn-sm" onclick="newEffect()">+ אפקט חדש</button>
+      </div>
+      <div class="fx-chip-list" id="fx-list"><div class="fx-empty">טוען…</div></div>
+    </div>
+
+    <!-- Main editor: sliders/dropdowns/toggles are the primary content -->
+    <div class="lab-main">
+      <div class="md-card" style="margin-bottom:16px">
+        <div class="md-card-title">שם + מכשיר</div>
+        <div class="row"><label>שם</label><input class="md-input" id="fx-name" placeholder="לבה איטית…" style="flex:1"></div>
+        <div class="row">
+          <label>סוג מכשיר</label>
+          <select class="md-select" id="fx-device" onchange="onDeviceChange()" style="flex:1">
+            <option value="staff">Staff (LED strip)</option>
+            <option value="dmx">DMX (4ch WRGB)</option>
+            <option value="pwm">WRGB Lights (PWM)</option>
+            <option value="progressbar">Progress Bar</option>
+          </select>
+        </div>
+        <div class="led-info" style="text-align:right;margin-bottom:4px">
+          המכשיר הספציפי (Target) וה-Policy נבחרים בשלב חיבור האפקט לטריגר ב-Banks, לא כאן.
+        </div>
+      </div>
+
+      <!-- STAFF: single unified effect model (Legacy Effect retired — Solid/
+           Sparkle/Rainbow/Flame/Vertical all live here as generic templates) -->
+      <div class="md-card" id="staff-card" style="margin-bottom:16px">
+        <div class="md-card-title">Staff Effect</div>
+        <div class="row"><label>Template</label>
+          <select class="md-select" id="fx-template" onchange="onGenericChange()" style="flex:1">
+            <option value="0">Solid</option>
+            <option value="1">Gradient</option>
+            <option value="2">Wave</option>
+            <option value="3">Fade</option>
+            <option value="4">Sparkle</option>
+            <option value="5">Theater Chase</option>
+            <option value="6">Flame</option>
+            <option value="7">Vertical</option>
+          </select>
+        </div>
+
+        <div id="fx-color-section">
+          <div class="row"><label>Color Source</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="fx-color-custom" onchange="onColorModeChange()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="val-badge" id="v-color-mode">Palette</span>
+          </div>
+          <div class="row" id="row-fx-palette"><label>Palette</label>
+            <select class="md-select" id="fx-palette" onchange="onGenericChange()" style="flex:1">
+              <option value="0">Rainbow</option>
+              <option value="1">Heat</option>
+              <option value="2">Lava</option>
+              <option value="3">Ocean</option>
+              <option value="4">Forest</option>
+              <option value="5">Party</option>
+            </select>
+          </div>
+          <div id="row-fx-primary" style="display:none">
+            <div class="row"><label>Primary R</label>
+              <input type="range" id="fx-pr" min="0" max="255" value="255" oninput="onGenericChange()">
+              <span class="val-badge" id="v-pr">255</span>
+            </div>
+            <div class="row"><label>Primary G</label>
+              <input type="range" id="fx-pg" min="0" max="255" value="0" oninput="onGenericChange()">
+              <span class="val-badge" id="v-pg">0</span>
+            </div>
+            <div class="row"><label>Primary B</label>
+              <input type="range" id="fx-pb" min="0" max="255" value="0" oninput="onGenericChange()">
+              <span class="val-badge" id="v-pb">0</span>
+              <div class="swatch" id="sw-primary" style="background:rgb(255,0,0)"></div>
+            </div>
+          </div>
+          <div id="row-fx-secondary" style="display:none">
+            <div class="row"><label>Secondary R</label>
+              <input type="range" id="fx-sr" min="0" max="255" value="0" oninput="onGenericChange()">
+              <span class="val-badge" id="v-sr">0</span>
+            </div>
+            <div class="row"><label>Secondary G</label>
+              <input type="range" id="fx-sg" min="0" max="255" value="0" oninput="onGenericChange()">
+              <span class="val-badge" id="v-sg">0</span>
+            </div>
+            <div class="row"><label>Secondary B</label>
+              <input type="range" id="fx-sb" min="0" max="255" value="255" oninput="onGenericChange()">
+              <span class="val-badge" id="v-sb">255</span>
+              <div class="swatch" id="sw-secondary" style="background:rgb(0,0,255)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" id="row-fx-speed"><label id="label-fx-speed">Speed</label>
+          <input type="range" id="fx-speed" min="0" max="255" value="128" oninput="onGenericChange()">
+          <span class="val-badge" id="v-speed">128</span>
+        </div>
+        <div class="row"><label>Intensity</label>
+          <input type="range" id="fx-intensity" min="0" max="255" value="200" oninput="onGenericChange()">
+          <span class="val-badge" id="v-intensity">200</span>
+        </div>
+        <div class="row" id="row-fx-param1">
+          <label id="label-fx-param1">Param 1</label>
+          <input type="range" id="fx-param1" min="0" max="255" value="20" oninput="onGenericChange()">
+          <label class="toggle-switch" id="toggle-fx-param1" style="display:none">
+            <input type="checkbox" id="fx-param1-chk" onchange="onParamToggle('param1')">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="val-badge" id="v-param1">20</span>
+        </div>
+        <div class="row" id="row-fx-param2">
+          <label id="label-fx-param2">Param 2</label>
+          <input type="range" id="fx-param2" min="0" max="255" value="255" oninput="onGenericChange()">
+          <label class="toggle-switch" id="toggle-fx-param2" style="display:none">
+            <input type="checkbox" id="fx-param2-chk" onchange="onParamToggle('param2')">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="val-badge" id="v-param2">255</span>
+        </div>
+
+        <div class="divider" style="margin:10px 0"></div>
+        <div class="section-label" style="margin-bottom:8px">🔴 IMU-Reactive (אופציונלי)</div>
+        <div class="row"><label>מקור חי</label>
+          <select class="md-select" id="fx-reactive-source" onchange="onReactiveChange()" style="flex:1">
+            <option value="0">— סטטי (ללא) —</option>
+            <option value="1">מהירות סיבוב</option>
+            <option value="2">זווית הטיה</option>
+            <option value="3">אוריינטציה (זקוף/אופקי/הפוך)</option>
+            <option value="4">כיוון סיבוב (CW/CCW)</option>
+          </select>
+        </div>
+        <div class="row" id="reactive-target-row" style="display:none">
+          <label>פרמטר יעד</label>
+          <select class="md-select" id="fx-reactive-param" onchange="onReactiveChange()" style="flex:1">
+            <option value="1">Speed</option>
+            <option value="2">Intensity</option>
+            <option value="3">Param 1</option>
+          </select>
+        </div>
+        <div class="led-info" id="reactive-note" style="display:none">
+          נפתר בזמן אמת על ה-Master מה-IMU שלו — אין תעבורת רדיו נוספת.
+        </div>
+      </div>
+
+      <!-- DMX / PWM / ProgressBar: static color card -->
+      <div class="md-card" id="color-card" style="margin-bottom:16px;display:none">
+        <div class="md-card-title" id="color-card-title">Color</div>
+        <div class="row"><label>W</label><input type="range" id="c-w" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-w">0</span></div>
+        <div class="row"><label>R</label><input type="range" id="c-r" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-r">0</span></div>
+        <div class="row"><label>G</label><input type="range" id="c-g" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-g">0</span></div>
+        <div class="row"><label>B</label><input type="range" id="c-b" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-b">0</span></div>
+        <div class="row" id="fade-row"><label>Fade (ms)</label><input type="range" id="c-fade" min="0" max="3000" step="100" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-fade">0</span></div>
+        <div class="row" id="progress-mode-row" style="display:none">
+          <label>Mode</label>
+          <select class="md-select" id="c-mode" style="flex:1">
+            <option value="1">Solid Color</option>
+            <option value="0">Progress Fill</option>
+          </select>
+        </div>
+        <div class="row" id="progress-value-row" style="display:none">
+          <label>Value %</label><input type="range" id="c-value" min="0" max="100" value="50" oninput="onColorChange()"><span class="val-badge" id="v-c-value">50</span>
+        </div>
+      </div>
+
+      <div class="flex-row">
+        <button class="md-btn md-btn-filled" onclick="testEffect()">🧪 Test on Hardware</button>
+        <button class="md-btn md-btn-success" onclick="saveEffect()">💾 Save</button>
+        <button class="md-btn md-btn-error" id="del-btn" onclick="deleteEffect()" style="display:none">🗑 Delete</button>
+      </div>
+      <div class="led-info" id="save-status"></div>
+    </div>
+  </div>
+
+  <script>
+    const ledCanvas = document.getElementById('led-preview');
+    const ledCtx    = ledCanvas.getContext('2d');
+    const wrgbCanvas = document.getElementById('wrgb-preview');
+    const wrgbCtx    = wrgbCanvas.getContext('2d');
+
+    // Matches firmware/staff/include/Config.h NUM_LEDS — the count the
+    // generic-effect algorithm actually computes (the 5-strip physical
+    // zigzag just mirrors these same values, nothing new to preview).
+    const LED_COUNT = 26;
+    let _animFrame = null;
+    let _playing = true;
+    let _tick = 0;
+    let _lastFps = 0, _fpsTimer = 0;
+    let _currentId = null;         // loaded effect id, or null = new/unsaved
+    let _fxCache = [];
+
+    // ─── Palette approximations (matches firmware CRGBPalette16 choices) ────
+    const PALETTES = [
+      // 0 Rainbow — handled specially via HSL wheel
+      null,
+      // 1 Heat: black -> red -> yellow -> white
+      [[0,0,0],[128,0,0],[255,80,0],[255,220,60],[255,255,255]],
+      // 2 Lava: black -> deep red -> orange -> yellow-white
+      [[0,0,0],[100,0,0],[200,20,0],[255,110,0],[255,200,80]],
+      // 3 Ocean: black -> deep blue -> teal -> near-white cyan
+      [[0,0,20],[0,40,90],[0,120,150],[100,220,220]],
+      // 4 Forest: black -> dark green -> green -> yellow-green
+      [[5,15,5],[10,60,15],[60,140,30],[160,200,40]],
+      // 5 Party: magenta -> blue -> purple -> pink -> magenta
+      [[255,0,180],[120,0,255],[0,80,255],[255,0,120],[255,0,180]],
+    ];
+
+    function hslToRgb(h, s, l) {
+      let r, g, b;
+      if (s === 0) { r = g = b = l; }
+      else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1; if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    function paletteColor(paletteId, t) {
+      t = ((t % 1) + 1) % 1;
+      if (paletteId === 0) return hslToRgb(t, 1, 0.5);
+      const stops = PALETTES[paletteId];
+      const segF = t * (stops.length - 1);
+      const i = Math.min(stops.length - 2, Math.floor(segF));
+      const f = segF - i;
+      const [r1,g1,b1] = stops[i], [r2,g2,b2] = stops[i+1];
+      return [r1 + (r2-r1)*f, g1 + (g2-g1)*f, b1 + (b2-b1)*f];
+    }
+
+    // 2-stop gradient between primary/secondary — mirrors LedManager::resolvePalette()
+    // building a CRGBPalette16(primary, secondary) on the firmware side.
+    function customColor(t) {
+      t = ((t % 1) + 1) % 1;
+      const r1 = +document.getElementById('fx-pr').value, g1 = +document.getElementById('fx-pg').value, b1 = +document.getElementById('fx-pb').value;
+      const r2 = +document.getElementById('fx-sr').value, g2 = +document.getElementById('fx-sg').value, b2 = +document.getElementById('fx-sb').value;
+      return [r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t];
+    }
+
+    // ─── LED color generation — mirrors firmware/staff LedManager.genericEffect().
+    // Canvas approximation only, not a pixel-accurate reproduction. ──────────
+    function getLedColors(tick) {
+      if (document.getElementById('fx-device').value !== 'staff') {
+        return Array(LED_COUNT).fill([0,0,0]);
+      }
+
+      const templateId = parseInt(document.getElementById('fx-template').value);
+      const paletteId  = parseInt(document.getElementById('fx-palette').value);
+      const custom     = document.getElementById('fx-color-custom').checked;
+      const colorFn    = custom ? customColor : (t => paletteColor(paletteId, t));
+      let speed      = parseInt(document.getElementById('fx-speed').value);
+      let intensityByte = parseInt(document.getElementById('fx-intensity').value);
+      let param1      = parseInt(document.getElementById('fx-param1').value);
+      let param2      = parseInt(document.getElementById('fx-param2').value);
+
+      // Preview-only stand-in for "reactive" params: sweeps like a live IMU
+      // signal would, since there's no real telemetry driving this canvas.
+      const reactiveSource = parseInt(document.getElementById('fx-reactive-source').value);
+      if (reactiveSource) {
+        const reactiveParam = parseInt(document.getElementById('fx-reactive-param').value);
+        const sim = Math.round((Math.sin(tick*0.03)+1)/2 * 255);
+        if (reactiveParam === 1) speed = sim;
+        else if (reactiveParam === 2) intensityByte = sim;
+        else if (reactiveParam === 3) param1 = sim;
+      }
+      const intensity  = intensityByte / 255;
+      const speedFactor = 1 + speed/40;
+      const colors = [];
+
+      for (let i = 0; i < LED_COUNT; i++) {
+        let c = [0,0,0];
+        switch (templateId) {
+          case 0: { // SOLID
+            c = colorFn(0);
+            break;
+          }
+          case 1: { // GRADIENT (was Palette Cycle) — param1 = direction toggle
+            const dir = param1 >= 128 ? -1 : 1;
+            c = colorFn(i/LED_COUNT + dir*tick*0.004*speedFactor);
+            break;
+          }
+          case 2: { // WAVE (was Sinelon) — param1 = trail width
+            const pos = Math.round(((Math.sin(tick*0.02*speedFactor)+1)/2) * (LED_COUNT-1));
+            const dist = Math.abs(i - pos);
+            const trail = Math.max(0, 1 - dist/(6+param1/10));
+            c = colorFn(tick*0.01).map(v => v*trail);
+            break;
+          }
+          case 3: { // FADE (was BPM) — param1 = min brightness, param2 = max brightness
+            const minB = param1/255, maxB = (param2 > param1 ? param2 : 255)/255;
+            const beat = minB + (maxB-minB) * (Math.sin(tick*0.015*speedFactor)+1)/2;
+            c = colorFn(tick*0.005 + i/LED_COUNT*0.3).map(v => v*beat);
+            break;
+          }
+          case 4: { // SPARKLE (was Confetti) — speed = density, param1 = decay
+            if (Math.random() < 0.02*speedFactor) c = colorFn(Math.random());
+            break;
+          }
+          case 5: { // THEATER_CHASE (unchanged, bonus)
+            const period = Math.max(2, 10 - speed/30);
+            const step = Math.floor(tick/period) % 3;
+            if ((i + step) % 3 === 0) c = colorFn(i/LED_COUNT);
+            break;
+          }
+          case 6: { // FLAME (Fire2012-style) — speed = cooling, param1 = sparking
+            const flicker = Math.random();
+            const base = Math.max(0, Math.sin(tick*0.1 + i*0.3) * 0.5 + 0.5);
+            const heat = Math.min(1, base*0.7 + flicker*0.3);
+            c = colorFn(heat*0.5).map(v => v*heat);
+            break;
+          }
+          case 7: { // VERTICAL — preview stand-in (no live angle in canvas)
+            const vertical = (tick % 120) < 60;
+            c = vertical ? [0,255,0] : [0,0,255];
+            break;
+          }
+        }
+        colors.push([Math.round(c[0]*intensity), Math.round(c[1]*intensity), Math.round(c[2]*intensity)]);
+      }
+      return colors;
+    }
+
+    // ─── Canvas rendering: single LED row ────────────────────────────────────
+    const CW = ledCanvas.width, CH = ledCanvas.height;
+    const PAD = 20;
+    const cellW = (CW - PAD * 2) / LED_COUNT;
+    const LED_R = Math.min(cellW * 0.4, CH * 0.32);
+    let _lastColors = Array(LED_COUNT).fill([0,0,0]);
+
+    function drawLEDs(colors) {
+      ledCtx.fillStyle = '#111';
+      ledCtx.fillRect(0, 0, CW, CH);
+      colors.forEach(([r, g, b], idx) => {
+        const x = PAD + idx * cellW + cellW / 2;
+        const y = CH / 2;
+        if (r + g + b > 10) {
+          const grd = ledCtx.createRadialGradient(x, y, 0, x, y, LED_R * 2.5);
+          grd.addColorStop(0, `rgba(${r},${g},${b},0.4)`);
+          grd.addColorStop(1, 'rgba(0,0,0,0)');
+          ledCtx.fillStyle = grd;
+          ledCtx.fillRect(x - LED_R * 2.5, y - LED_R * 2.5, LED_R * 5, LED_R * 5);
+        }
+        ledCtx.beginPath();
+        ledCtx.arc(x, y, LED_R, 0, Math.PI * 2);
+        ledCtx.fillStyle = `rgb(${r},${g},${b})`;
+        ledCtx.fill();
+        ledCtx.strokeStyle = '#333';
+        ledCtx.lineWidth = 0.5;
+        ledCtx.stroke();
+      });
+      _lastColors = colors;
+    }
+
+    function drawColorPreview() {
+      const dev = document.getElementById('fx-device').value;
+      let w=0,r=0,g=0,b=0;
+      if (dev !== 'staff') {
+        w = parseInt(document.getElementById('c-w').value);
+        r = parseInt(document.getElementById('c-r').value);
+        g = parseInt(document.getElementById('c-g').value);
+        b = parseInt(document.getElementById('c-b').value);
+      }
+      const rr=Math.min(255,w+r), gg=Math.min(255,w+g), bb=Math.min(255,w+b);
+      wrgbCtx.fillStyle = (dev !== 'staff' && (w||r||g||b)) ? `rgb(${rr},${gg},${bb})` : '#222';
+      wrgbCtx.fillRect(0, 0, wrgbCanvas.width, wrgbCanvas.height);
+      if (dev === 'staff' || (!w && !r && !g && !b)) {
+        wrgbCtx.fillStyle = '#555';
+        wrgbCtx.font = '12px monospace';
+        wrgbCtx.textAlign = 'center';
+        wrgbCtx.fillText(dev === 'staff' ? '— Staff LED preview only —' : 'OFF', wrgbCanvas.width/2, 24);
+        wrgbCtx.textAlign = 'left';
+      }
+    }
+
+    let _prevTime = 0;
+    function animLoop(ts) {
+      const speed = parseInt(document.getElementById('anim-speed').value);
+      const dt = ts - _prevTime;
+      if (dt > (60 / speed)) {
+        _tick++;
+        _prevTime = ts;
+        drawLEDs(getLedColors(_tick));
+        drawColorPreview();
+        _fpsTimer += dt; _lastFps++;
+        if (_fpsTimer >= 1000) {
+          document.getElementById('fps-label').textContent = `FPS: ${_lastFps}`;
+          _lastFps = 0; _fpsTimer = 0;
+        }
+      }
+      if (_playing) _animFrame = requestAnimationFrame(animLoop);
+    }
+    function togglePlay() {
+      _playing = !_playing;
+      document.getElementById('play-btn').textContent = _playing ? '⏸ Pause' : '▶ Play';
+      if (_playing) _animFrame = requestAnimationFrame(animLoop);
+    }
+
+    ledCanvas.addEventListener('mousemove', e => {
+      const rect = ledCanvas.getBoundingClientRect();
+      const scaleX = ledCanvas.width / rect.width, scaleY = ledCanvas.height / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const idx = Math.floor((mx - PAD) / cellW);
+      if (idx >= 0 && idx < LED_COUNT && _lastColors[idx]) {
+        const [r, g, b] = _lastColors[idx];
+        document.getElementById('led-info').textContent = `LED #${idx} → R:${r} G:${g} B:${b}`;
+      }
+    });
+
+    // ─── Editor state wiring ─────────────────────────────────────────────────
+    function onDeviceChange() {
+      const dev = document.getElementById('fx-device').value;
+      document.getElementById('staff-card').style.display = dev === 'staff' ? '' : 'none';
+      document.getElementById('color-card').style.display = dev === 'staff' ? 'none' : '';
+      document.getElementById('color-card-title').textContent =
+        {dmx:'DMX (4ch WRGB)', pwm:'WRGB Lights (PWM)', progressbar:'Progress Bar'}[dev] || 'Color';
+      document.getElementById('fade-row').style.display = dev === 'dmx' ? 'none' : '';
+      document.getElementById('progress-mode-row').style.display = dev === 'progressbar' ? '' : 'none';
+      document.getElementById('progress-value-row').style.display = dev === 'progressbar' ? '' : 'none';
+    }
+
+    function onColorModeChange() {
+      const custom = document.getElementById('fx-color-custom').checked;
+      document.getElementById('v-color-mode').textContent = custom ? 'Custom' : 'Palette';
+      document.getElementById('row-fx-palette').style.display = custom ? 'none' : '';
+      document.getElementById('row-fx-primary').style.display = custom ? '' : 'none';
+      document.getElementById('row-fx-secondary').style.display = custom ? '' : 'none';
+    }
+
+    // WLED-style metadata-hiding: each template declares which of speed/param1/
+    // param2 it actually uses (intensity is relevant to every color template,
+    // always shown). Matches firmware/staff/src/LedManager.cpp genericEffect().
+    // A param spec of `false` hides the row; `true` shows it with the default
+    // label; an object can override the label, cap the slider (`max`), or turn
+    // it into a toggle switch instead of a slider (`type:'toggle'`).
+    const GENERIC_TEMPLATE_META = {
+      0: { speed: false, param1: false, param2: false }, // Solid
+      1: { speed: true,  param1: { label: 'Direction', type: 'toggle', onLabel: '⟲ Reverse', offLabel: '⟳ Forward' }, param2: false }, // Gradient
+      2: { speed: true,  param1: { label: 'Width' }, param2: false }, // Wave
+      3: { speed: true,  param1: { label: 'Min Brightness' }, param2: { label: 'Max Brightness' } }, // Fade
+      4: { speed: { label: 'Density' }, param1: { label: 'Decay' }, param2: false }, // Sparkle
+      5: { speed: true,  param1: false, param2: false }, // Theater Chase
+      6: { speed: { label: 'Cooling' }, param1: { label: 'Sparking' }, param2: false }, // Flame
+      7: { speed: false, param1: { label: 'Angle Window (°)', max: 90 }, param2: false, noColor: true }, // Vertical — fixed green/blue, no palette/custom color
+    };
+
+    function onParamToggle(key) {
+      document.getElementById(`fx-${key}`).value = document.getElementById(`fx-${key}-chk`).checked ? 255 : 0;
+      onGenericChange();
+    }
+
+    function onGenericChange() {
+      const templateId = parseInt(document.getElementById('fx-template').value);
+      const meta = GENERIC_TEMPLATE_META[templateId] || {};
+
+      const speedSpec = meta.speed;
+      document.getElementById('row-fx-speed').style.display = speedSpec ? '' : 'none';
+      document.getElementById('label-fx-speed').textContent = (speedSpec && speedSpec.label) || 'Speed';
+      document.getElementById('v-speed').textContent = document.getElementById('fx-speed').value;
+      document.getElementById('v-intensity').textContent = document.getElementById('fx-intensity').value;
+
+      ['param1', 'param2'].forEach(key => {
+        const spec = meta[key];
+        const row     = document.getElementById(`row-fx-${key}`);
+        const rangeEl  = document.getElementById(`fx-${key}`);
+        const toggleEl = document.getElementById(`toggle-fx-${key}`);
+        const chkEl    = document.getElementById(`fx-${key}-chk`);
+        const badge    = document.getElementById(`v-${key}`);
+        row.style.display = spec ? '' : 'none';
+        if (!spec) return;
+        document.getElementById(`label-fx-${key}`).textContent = spec.label || (key === 'param1' ? 'Param 1' : 'Param 2');
+        rangeEl.max = spec.max || 255;
+        if (spec.type === 'toggle') {
+          rangeEl.style.display = 'none';
+          toggleEl.style.display = '';
+          const checked = parseInt(rangeEl.value) >= 128;
+          chkEl.checked = checked;
+          badge.textContent = checked ? spec.onLabel : spec.offLabel;
+        } else {
+          rangeEl.style.display = '';
+          toggleEl.style.display = 'none';
+          badge.textContent = rangeEl.value;
+        }
+      });
+
+      document.getElementById('fx-color-section').style.display = meta.noColor ? 'none' : '';
+      updateCustomColorUI();
+    }
+
+    // Keeps the Primary/Secondary R/G/B slider badges and swatch previews in
+    // sync — replaces the native <input type=color> tooltip (it covered the
+    // controls below it and could swallow the next click, e.g. Test on Hardware).
+    function updateCustomColorUI() {
+      ['pr','pg','pb','sr','sg','sb'].forEach(id => {
+        const el = document.getElementById(`fx-${id}`), badge = document.getElementById(`v-${id}`);
+        if (el && badge) badge.textContent = el.value;
+      });
+      document.getElementById('sw-primary').style.background =
+        `rgb(${document.getElementById('fx-pr').value},${document.getElementById('fx-pg').value},${document.getElementById('fx-pb').value})`;
+      document.getElementById('sw-secondary').style.background =
+        `rgb(${document.getElementById('fx-sr').value},${document.getElementById('fx-sg').value},${document.getElementById('fx-sb').value})`;
+    }
+
+    function onReactiveChange() {
+      const source = parseInt(document.getElementById('fx-reactive-source').value);
+      document.getElementById('reactive-target-row').style.display = source ? '' : 'none';
+      document.getElementById('reactive-note').style.display = source ? '' : 'none';
+      const targetParam = source ? parseInt(document.getElementById('fx-reactive-param').value) : 0;
+      const map = {1:'fx-speed', 2:'fx-intensity', 3:'fx-param1'};
+      ['fx-speed','fx-intensity','fx-param1'].forEach(id => {
+        const badge = document.getElementById('v-' + id.replace('fx-',''));
+        const isLive = source && map[targetParam] === id;
+        document.getElementById(id).disabled = isLive;
+        if (badge && !isLive) badge.textContent = document.getElementById(id).value;
+        else if (badge) badge.textContent = '🔴 LIVE';
+      });
+    }
+    function onColorChange() {
+      ['w','r','g','b','fade','value'].forEach(k => {
+        const el = document.getElementById(`c-${k}`);
+        const lbl = document.getElementById(`v-c-${k}`);
+        if (el && lbl) lbl.textContent = el.value;
+      });
+    }
+    // Sensible "test now" targets only — the real target/policy for a trigger
+    // is chosen later when the effect is attached to a Bank action, not here.
+    const TEST_TARGET = { staff: 65535, dmx: 1, pwm: 255, progressbar: 255 };
+
+    // ─── Build effect payload from current editor state ─────────────────────
+    function buildEffectPayload() {
+      const device = document.getElementById('fx-device').value;
+      const base = { name: document.getElementById('fx-name').value.trim(), deviceType: device };
+      if (device === 'staff') {
+        Object.assign(base, {
+          templateId: parseInt(document.getElementById('fx-template').value),
+          paletteId:  parseInt(document.getElementById('fx-palette').value),
+          speed:      parseInt(document.getElementById('fx-speed').value),
+          intensity:  parseInt(document.getElementById('fx-intensity').value),
+          param1:     parseInt(document.getElementById('fx-param1').value),
+          param2:     parseInt(document.getElementById('fx-param2').value),
+          reactiveSource: parseInt(document.getElementById('fx-reactive-source').value),
+          reactiveParam:  parseInt(document.getElementById('fx-reactive-source').value)
+                          ? parseInt(document.getElementById('fx-reactive-param').value) : 0,
+          colorMode: document.getElementById('fx-color-custom').checked ? 1 : 0,
+          pr: parseInt(document.getElementById('fx-pr').value), pg: parseInt(document.getElementById('fx-pg').value), pb: parseInt(document.getElementById('fx-pb').value),
+          sr: parseInt(document.getElementById('fx-sr').value), sg: parseInt(document.getElementById('fx-sg').value), sb: parseInt(document.getElementById('fx-sb').value),
+        });
+      } else if (device === 'dmx') {
+        Object.assign(base, {
+          w: parseInt(document.getElementById('c-w').value), r: parseInt(document.getElementById('c-r').value),
+          g: parseInt(document.getElementById('c-g').value), b: parseInt(document.getElementById('c-b').value),
+        });
+      } else if (device === 'pwm') {
+        Object.assign(base, {
+          w: parseInt(document.getElementById('c-w').value), r: parseInt(document.getElementById('c-r').value),
+          g: parseInt(document.getElementById('c-g').value), b: parseInt(document.getElementById('c-b').value),
+          fadeMs: parseInt(document.getElementById('c-fade').value),
+        });
+      } else if (device === 'progressbar') {
+        Object.assign(base, {
+          mode: parseInt(document.getElementById('c-mode').value),
+          value: parseInt(document.getElementById('c-value').value),
+          r: parseInt(document.getElementById('c-r').value), g: parseInt(document.getElementById('c-g').value),
+          b: parseInt(document.getElementById('c-b').value), fadeMs: parseInt(document.getElementById('c-fade').value),
+        });
+      }
+      return base;
+    }
+
+    function loadEffectPayload(e) {
+      document.getElementById('fx-name').value = e.name || '';
+      document.getElementById('fx-device').value = e.deviceType || 'staff';
+      onDeviceChange();
+      if (e.deviceType === 'staff') {
+        document.getElementById('fx-template').value = e.templateId ?? 0;
+        document.getElementById('fx-palette').value  = e.paletteId ?? 0;
+        document.getElementById('fx-speed').value     = e.speed ?? 128;
+        document.getElementById('fx-intensity').value = e.intensity ?? 200;
+        document.getElementById('fx-param1').value    = e.param1 ?? 20;
+        document.getElementById('fx-param2').value    = e.param2 ?? 255;
+        document.getElementById('fx-reactive-source').value = e.reactiveSource ?? 0;
+        document.getElementById('fx-reactive-param').value  = e.reactiveParam ?? 1;
+        document.getElementById('fx-color-custom').checked = (e.colorMode === 1);
+        document.getElementById('fx-pr').value = e.pr ?? 255;
+        document.getElementById('fx-pg').value = e.pg ?? 0;
+        document.getElementById('fx-pb').value = e.pb ?? 0;
+        document.getElementById('fx-sr').value = e.sr ?? 0;
+        document.getElementById('fx-sg').value = e.sg ?? 0;
+        document.getElementById('fx-sb').value = e.sb ?? 255;
+        onColorModeChange();
+        onGenericChange();
+        onReactiveChange();
+      } else {
+        document.getElementById('c-w').value = e.w ?? 0;
+        document.getElementById('c-r').value = e.r ?? 0;
+        document.getElementById('c-g').value = e.g ?? 0;
+        document.getElementById('c-b').value = e.b ?? 0;
+        document.getElementById('c-fade').value = e.fadeMs ?? 0;
+        if (e.deviceType === 'progressbar') {
+          document.getElementById('c-mode').value = e.mode ?? 1;
+          document.getElementById('c-value').value = e.value ?? 50;
+        }
+        onColorChange();
+      }
+    }
+
+    function newEffect() {
+      _currentId = null;
+      document.getElementById('fx-name').value = '';
+      document.getElementById('fx-reactive-source').value = '0';
+      onReactiveChange();
+      document.getElementById('del-btn').style.display = 'none';
+      document.getElementById('save-status').textContent = '';
+      renderFxList();
+    }
+
+    // ─── Backend wiring ───────────────────────────────────────────────────────
+    function post(path, body) {
+      return fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) })
+        .then(r => r.json());
+    }
+    function put(path, body) {
+      return fetch(path, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) })
+        .then(r => r.json());
+    }
+
+    function testEffect() {
+      const payload = buildEffectPayload();
+      payload.targetId = TEST_TARGET[payload.deviceType] ?? 65535;
+      post('/api/fx/preview', payload).then(res => {
+        document.getElementById('save-status').textContent = res.ok ? '✓ נשלח לחומרה' : `✗ ${res.error||'שגיאה'}`;
+      });
+    }
+
+    function saveEffect() {
+      const payload = buildEffectPayload();
+      if (!payload.name) { document.getElementById('save-status').textContent = '✗ צריך שם'; return; }
+      const req = _currentId ? put(`/api/fx/${_currentId}`, payload) : post('/api/fx', payload);
+      req.then(res => {
+        if (res.ok) {
+          _currentId = res.effect.id;
+          document.getElementById('del-btn').style.display = '';
+          document.getElementById('save-status').textContent = '✓ נשמר';
+          loadFxList();
+        } else {
+          document.getElementById('save-status').textContent = `✗ ${res.error||'שגיאה'}`;
+        }
+      });
+    }
+
+    function deleteEffect() {
+      if (!_currentId) return;
+      fetch(`/api/fx/${_currentId}`, {method:'DELETE'}).then(r=>r.json()).then(res => {
+        if (res.ok) { newEffect(); loadFxList(); }
+      });
+    }
+
+    function selectEffect(id) {
+      const e = _fxCache.find(x => x.id === id);
+      if (!e) return;
+      _currentId = id;
+      loadEffectPayload(e);
+      document.getElementById('del-btn').style.display = '';
+      document.getElementById('save-status').textContent = '';
+      renderFxList();
+    }
+
+    function renderFxList() {
+      const box = document.getElementById('fx-list');
+      if (!_fxCache.length) { box.innerHTML = '<div class="fx-empty">אין אפקטים שמורים עדיין</div>'; return; }
+      box.innerHTML = _fxCache.map(e => `
+        <div class="fx-chip${e.id===_currentId?' active':''}" onclick="selectEffect('${e.id}')">
+          <span>${e.name||'(ללא שם)'}</span>
+          <span style="opacity:.6;font-size:.7rem">${e.deviceType}</span>
+          <button onclick="event.stopPropagation(); quickDelete('${e.id}')" title="מחק">🗑</button>
+        </div>`).join('');
+    }
+
+    function quickDelete(id) {
+      fetch(`/api/fx/${id}`, {method:'DELETE'}).then(r=>r.json()).then(res => {
+        if (res.ok) { if (_currentId===id) newEffect(); loadFxList(); }
+      });
+    }
+
+    function loadFxList() {
+      fetch('/api/fx').then(r=>r.json()).then(res => {
+        _fxCache = res.effects || [];
+        renderFxList();
+      });
+    }
+
+    // Start
+    onDeviceChange();
+    onColorModeChange();
+    onGenericChange();
+    loadFxList();
+    _animFrame = requestAnimationFrame(animLoop);
+  </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "id": "staff-vertical-green",
+  "name": "Staff Vertical Green / Blue",
+  "description": "Staff master head lights GREEN whenever it points straight up (within ±20° of vertical-up, angle≈0°), and BLUE at all other angles. The angle→color decision runs locally on the Staff firmware (CMD_LED_VERTICAL preset, driven by its own IMU) — the engine only activates the preset once when the number starts; no further round-trips needed. The down-pointing pass (angle≈±180°, 'inverted') is intentionally NOT treated as vertical here.",
+  "events": [
+    {
+      "id": "evt-activate-vertical-preset",
+      "trigger": {
+        "type": "staff_telemetry",
+        "condition": "True"
+      },
+      "timelines": [
+        {
+          "device": "staff",
+          "targetId": 65535,
+          "policy": "INTERRUPT",
+          "steps": [
+            { "t": 0.0, "cmd": "LED_VERTICAL" }
+          ]
+        }
+      ]
+    }
+  ]
+}

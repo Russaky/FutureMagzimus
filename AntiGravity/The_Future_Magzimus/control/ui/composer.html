@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timeline Composer — MAGZIMUS</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    body.has-sidebar .page-content { display: flex; flex-direction: column; height: 100vh; }
+    .composer-toolbar {
+      padding: 8px 16px; border-bottom: 1px solid var(--outline-variant);
+      background: var(--surface-container); flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .composer-body {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* Transport */
+    .transport {
+      display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+      background: var(--surface); border-bottom: 1px solid var(--outline-variant); flex-shrink: 0;
+    }
+    .time-display {
+      font-family: monospace; font-size: 1.3rem; font-weight: 700;
+      color: var(--primary); min-width: 80px;
+    }
+    .transport-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: none; cursor: pointer; font-size: 1rem;
+      background: var(--primary); color: var(--on-primary);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .transport-btn.secondary { background: var(--secondary-container); color: var(--on-secondary-container); }
+    input[type=range].timeline-scrub { flex: 1; accent-color: var(--primary); }
+    .duration-input { width: 70px; font-family: monospace; }
+
+    /* Timeline grid */
+    .timeline-scroll { flex: 1; overflow: auto; position: relative; }
+    .timeline-grid {
+      display: flex; min-height: 100%;
+    }
+    .track-labels {
+      width: 140px; flex-shrink: 0; background: var(--surface-container);
+      border-right: 1px solid var(--outline-variant);
+    }
+    .track-label-header {
+      height: 32px; border-bottom: 1px solid var(--outline-variant);
+      display: flex; align-items: center; padding: 0 12px;
+      font-size: .7rem; font-weight: 600; color: var(--on-surface-variant);
+    }
+    .track-label {
+      height: 64px; border-bottom: 1px solid var(--outline-variant);
+      padding: 0 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    }
+    .track-label-name { font-weight: 600; font-size: .8rem; }
+    .track-label-id { font-size: .7rem; color: var(--on-surface-variant); }
+    .add-track-btn {
+      width: 100%; padding: 10px; background: none; border: none;
+      border-top: 1px solid var(--outline-variant);
+      font-size: .8rem; color: var(--primary); cursor: pointer;
+      text-align: center;
+    }
+    .add-track-btn:hover { background: var(--primary-container); }
+
+    /* Canvas area */
+    .canvas-area { flex: 1; position: relative; }
+    canvas#timeline-canvas {
+      display: block; cursor: crosshair;
+    }
+
+    /* Keyframe modal */
+    .kf-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .kf-modal.hidden { display: none; }
+    .kf-card {
+      background: var(--surface); border-radius: 16px; padding: 24px;
+      min-width: 340px; box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    }
+    .kf-title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+    .kf-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Legend */
+    .legend { display: flex; gap: 12px; padding: 6px 16px; flex-shrink: 0;
+              background: var(--surface-container); border-top: 1px solid var(--outline-variant); }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: .75rem; }
+    .legend-swatch { width: 16px; height: 16px; border-radius: 3px; }
+
+    /* export */
+    .export-area { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-content">
+    <!-- Toolbar -->
+    <div class="composer-toolbar">
+      <span style="font-size:.8rem;font-weight:700;color:var(--primary);letter-spacing:.5px">COMPOSER</span>
+      <div style="width:1px;height:24px;background:var(--outline-variant)"></div>
+      <input class="md-input" id="num-name" placeholder="Number name" value="New Composition" style="width:200px">
+      <input class="md-input" id="num-id"   placeholder="id" value="new-composition" style="width:160px">
+      <div style="width:1px;height:24px;background:var(--outline-variant)"></div>
+      <label style="font-size:.8rem;color:var(--on-surface-variant)">Duration:</label>
+      <input type="number" class="md-input duration-input" id="total-dur" value="10" min="1" max="300">
+      <span style="font-size:.8rem;color:var(--on-surface-variant)">sec</span>
+      <div style="width:1px;height:24px;background:var(--outline-variant)"></div>
+      <button class="md-btn md-btn-filled md-btn-sm" onclick="exportNumber()">💾 Export JSON</button>
+      <button class="md-btn md-btn-tonal md-btn-sm" onclick="saveToServer()">⬆ שמור לשרת</button>
+      <button class="md-btn md-btn-outline md-btn-sm" onclick="loadFromServer()">📂 טען</button>
+      <select class="md-select" id="load-sel" style="font-size:.8rem;padding:6px 10px" onchange="onLoadSel()">
+        <option value="">— טען קיים —</option>
+      </select>
+      <span id="save-msg" style="font-size:.8rem;color:var(--on-surface-variant)"></span>
+    </div>
+
+    <div class="composer-body">
+      <!-- Transport -->
+      <div class="transport">
+        <button class="transport-btn" id="play-btn" onclick="togglePlay()">▶</button>
+        <button class="transport-btn secondary" onclick="stop()">■</button>
+        <button class="transport-btn secondary" onclick="skipToStart()">⏮</button>
+        <div class="time-display" id="time-display">0.00</div>
+        <input type="range" class="timeline-scrub" id="scrub" min="0" max="1000" value="0" oninput="onScrub()">
+        <span style="font-size:.8rem;color:var(--on-surface-variant)" id="dur-label">/ 10s</span>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-scroll" id="tl-scroll">
+        <div class="timeline-grid">
+          <!-- Track labels -->
+          <div class="track-labels" id="track-labels">
+            <div class="track-label-header">TRACK</div>
+            <!-- dynamic -->
+          </div>
+          <!-- Canvas -->
+          <div class="canvas-area" id="canvas-area">
+            <canvas id="timeline-canvas" height="400"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#7C4DFF"></div> Staff LED</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#E53935"></div> Relay</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#43A047"></div> PWM</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#FF8F00"></div> Staff Sparkle</div>
+        <div style="margin-left:auto;font-size:.75rem;color:var(--on-surface-variant)">
+          Dbl-click: edita | Drag: move | Del: rimuovi
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyframe Modal -->
+  <div class="kf-modal hidden" id="kf-modal">
+    <div class="kf-card">
+      <div class="kf-title" id="kf-title">ערוך Keyframe</div>
+      <div id="kf-fields"></div>
+      <div class="kf-actions">
+        <button class="md-btn md-btn-error md-btn-sm" onclick="deleteKf()">🗑 מחק</button>
+        <button class="md-btn md-btn-outline md-btn-sm" onclick="closeModal()">ביטול</button>
+        <button class="md-btn md-btn-filled md-btn-sm" onclick="applyKf()">אישור</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ─── State ─────────────────────────────────────────────────────────────────
+  let _tracks = [
+    {id:'staff-1', device:'staff', label:'Staff S3', targetId:0xFFFF, policy:'INTERRUPT', color:'#7C4DFF', kfs:[]},
+    {id:'relay-1', device:'relay', label:'Relay',    targetId:0xFF,   policy:'IGNORE',    color:'#E53935', kfs:[]},
+    {id:'pwm-1',   device:'pwm',   label:'PWM',      targetId:0xFF,   policy:'QUEUE',     color:'#43A047', kfs:[]},
+  ];
+  let _playing = false;
+  let _playT   = 0;
+  let _raf     = null;
+  let _prevTs  = 0;
+  let _editKf  = null;  // {trackId, kfIdx}
+  let _dragging = null; // {trackId, kfIdx, startX, origT}
+
+  const TRACK_H  = 64;
+  const HDR_H    = 32;
+  const PX_PER_S = 80;
+  const canvas   = document.getElementById('timeline-canvas');
+  const ctx      = canvas.getContext('2d');
+
+  // ─── Canvas sizing ──────────────────────────────────────────────────────────
+  function resizeCanvas() {
+    const area = document.getElementById('canvas-area');
+    const dur = totalDur();
+    canvas.width  = Math.max(area.offsetWidth, dur * PX_PER_S + 100);
+    canvas.height = HDR_H + _tracks.length * TRACK_H + 60;
+    renderCanvas();
+    updateTrackLabels();
+  }
+
+  function totalDur() { return parseFloat(document.getElementById('total-dur').value) || 10; }
+
+  // ─── Track labels ───────────────────────────────────────────────────────────
+  function updateTrackLabels() {
+    const el = document.getElementById('track-labels');
+    const DEVICE_ICONS = {staff:'🎯', relay:'💨', pwm:'💡'};
+    el.innerHTML = `<div class="track-label-header">TRACK</div>` +
+      _tracks.map(t => `
+        <div class="track-label">
+          <div class="track-label-name">${DEVICE_ICONS[t.device]||''} ${t.label}</div>
+          <div class="track-label-id">${t.device} · target:${t.targetId}</div>
+        </div>
+      `).join('') +
+      `<button class="add-track-btn" onclick="addTrack()">+ Track</button>`;
+  }
+
+  // ─── Render canvas ──────────────────────────────────────────────────────────
+  function renderCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dur = totalDur();
+
+    // Header — time ruler
+    ctx.fillStyle = '#F3EDF7';
+    ctx.fillRect(0, 0, canvas.width, HDR_H);
+    ctx.strokeStyle = '#CAC4D0';
+    ctx.beginPath();
+    ctx.moveTo(0, HDR_H); ctx.lineTo(canvas.width, HDR_H); ctx.stroke();
+
+    ctx.fillStyle = '#49454F'; ctx.font = '10px monospace';
+    for (let s = 0; s <= dur; s += 0.5) {
+      const x = s * PX_PER_S;
+      const isMajor = Number.isInteger(s);
+      ctx.strokeStyle = isMajor ? '#79747E' : '#CAC4D0';
+      ctx.lineWidth = isMajor ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(x, isMajor ? HDR_H - 12 : HDR_H - 6);
+      ctx.lineTo(x, HDR_H); ctx.stroke();
+      if (isMajor) ctx.fillText(s + 's', x + 2, HDR_H - 14);
+    }
+
+    // Track backgrounds
+    _tracks.forEach((track, ti) => {
+      const y = HDR_H + ti * TRACK_H;
+      ctx.fillStyle = ti % 2 === 0 ? '#FFFBFE' : '#F3EDF7';
+      ctx.fillRect(0, y, canvas.width, TRACK_H);
+      // Grid lines
+      ctx.strokeStyle = '#E7E0EC'; ctx.lineWidth = 0.5;
+      for (let s = 0; s <= dur; s += 0.5) {
+        const x = s * PX_PER_S;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + TRACK_H); ctx.stroke();
+      }
+      // Bottom border
+      ctx.strokeStyle = '#CAC4D0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, y + TRACK_H); ctx.lineTo(canvas.width, y + TRACK_H); ctx.stroke();
+
+      // Keyframes
+      track.kfs.forEach((kf, ki) => {
+        const kx = kf.t * PX_PER_S;
+        const kw = Math.max(kf.dur * PX_PER_S, 12);
+        const ky = y + 8;
+        const kh = TRACK_H - 16;
+
+        // Block
+        ctx.fillStyle = track.color + 'CC';
+        ctx.beginPath();
+        roundRect(ctx, kx, ky, kw, kh, 4);
+        ctx.fill();
+        ctx.strokeStyle = track.color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold 10px system-ui`;
+        ctx.fillText(kf.cmd?.replace('LED_','').replace('RELAY_','') || '?',
+                     kx + 4, ky + kh / 2 + 4);
+
+        // Resize handle
+        ctx.fillStyle = track.color;
+        ctx.fillRect(kx + kw - 4, ky + 4, 4, kh - 8);
+      });
+    });
+
+    // End wall
+    const endX = dur * PX_PER_S;
+    ctx.strokeStyle = '#B3261E'; ctx.lineWidth = 2;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(endX, HDR_H); ctx.lineTo(endX, canvas.height); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Playhead
+    const px = _playT * PX_PER_S;
+    ctx.strokeStyle = '#E53935'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, HDR_H - 4); ctx.lineTo(px, canvas.height); ctx.stroke();
+    // Arrow
+    ctx.fillStyle = '#E53935';
+    ctx.beginPath(); ctx.moveTo(px - 6, HDR_H - 4); ctx.lineTo(px + 6, HDR_H - 4);
+    ctx.lineTo(px, HDR_H + 4); ctx.fill();
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  // ─── Canvas interactions ────────────────────────────────────────────────────
+  canvas.addEventListener('dblclick', e => {
+    const {trackIdx, t} = canvasCoords(e);
+    if (trackIdx < 0) return;
+    const track = _tracks[trackIdx];
+    // Check if clicking existing kf
+    const kfIdx = track.kfs.findIndex(kf => t >= kf.t && t <= kf.t + kf.dur);
+    if (kfIdx >= 0) {
+      openModal(track.id, kfIdx);
+    } else {
+      // Add new keyframe
+      const defaultKf = defaultKeyframe(track.device, t);
+      track.kfs.push(defaultKf);
+      track.kfs.sort((a,b) => a.t - b.t);
+      renderCanvas();
+    }
+  });
+
+  let _pointerDown = false;
+  canvas.addEventListener('pointerdown', e => {
+    const {trackIdx, t, x} = canvasCoords(e);
+    if (trackIdx < 0) return;
+    const track = _tracks[trackIdx];
+    const kfIdx = track.kfs.findIndex(kf => t >= kf.t && t <= kf.t + kf.dur);
+    if (kfIdx >= 0) {
+      _dragging = {trackId: track.id, kfIdx, startX: x, origT: track.kfs[kfIdx].t};
+      canvas.setPointerCapture(e.pointerId);
+    } else {
+      // Seek
+      _playT = Math.max(0, Math.min(totalDur(), t));
+      document.getElementById('scrub').value = (_playT / totalDur()) * 1000;
+      document.getElementById('time-display').textContent = _playT.toFixed(2);
+      renderCanvas();
+    }
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (!_dragging) return;
+    const {x} = canvasCoords(e);
+    const dx = (x - _dragging.startX) / PX_PER_S;
+    const track = _tracks.find(t => t.id === _dragging.trackId);
+    if (track) {
+      const kf = track.kfs[_dragging.kfIdx];
+      kf.t = Math.max(0, parseFloat((_dragging.origT + dx).toFixed(2)));
+      renderCanvas();
+    }
+  });
+
+  canvas.addEventListener('pointerup', () => { _dragging = null; });
+
+  canvas.addEventListener('keydown', e => {
+    if (e.key === 'Delete' && _editKf) {
+      deleteKf();
+    }
+  });
+
+  function canvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const trackIdx = Math.floor((y - HDR_H) / TRACK_H);
+    const t = x / PX_PER_S;
+    return {trackIdx, t, x, y};
+  }
+
+  // ─── Keyframe defaults ──────────────────────────────────────────────────────
+  function defaultKeyframe(device, t) {
+    const base = {t: parseFloat(t.toFixed(2)), dur: 1};
+    if (device === 'staff')  return {...base, cmd:'LED_SOLID', r:255, g:100, b:0, brightness:200};
+    if (device === 'relay')  return {...base, cmd:'RELAY_ON',  durationMs:1500, dur: 0.2};
+    if (device === 'pwm')    return {...base, cmd:'PWM_SET',   w:200, r:0, g:0, b:0, fadeMs:500};
+    return base;
+  }
+
+  // ─── Modal ──────────────────────────────────────────────────────────────────
+  function openModal(trackId, kfIdx) {
+    _editKf = {trackId, kfIdx};
+    const track = _tracks.find(t => t.id === trackId);
+    const kf = track.kfs[kfIdx];
+    document.getElementById('kf-title').textContent = `Keyframe — ${track.label} @ ${kf.t}s`;
+    const fields = document.getElementById('kf-fields');
+
+    let html = `
+      <div class="md-field"><label class="md-label">Time (s)</label>
+        <input type="number" class="md-input" id="kf-t" value="${kf.t}" step="0.1"></div>
+      <div class="md-field"><label class="md-label">Duration (s)</label>
+        <input type="number" class="md-input" id="kf-dur" value="${kf.dur}" step="0.1" min="0.05"></div>
+      <div class="md-field"><label class="md-label">Command</label>
+        <select class="md-select" id="kf-cmd" style="width:100%">
+    `;
+    const cmds = track.device === 'staff'
+      ? ['LED_SOLID','LED_OFF','LED_SPARKLE','LED_FLAME','LED_RAINBOW']
+      : track.device === 'relay'
+      ? ['RELAY_ON','RELAY_OFF']
+      : ['PWM_SET'];
+    html += cmds.map(c => `<option${c===kf.cmd?' selected':''}>${c}</option>`).join('');
+    html += `</select></div>`;
+
+    if (track.device === 'staff' && kf.cmd !== 'LED_OFF') {
+      html += `
+        <div class="grid-3" style="gap:8px">
+          <div class="md-field"><label class="md-label">R</label><input type="number" class="md-input" id="kf-r" value="${kf.r??255}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">G</label><input type="number" class="md-input" id="kf-g" value="${kf.g??0}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">B</label><input type="number" class="md-input" id="kf-b" value="${kf.b??0}" min="0" max="255"></div>
+        </div>
+        <div class="md-field"><label class="md-label">Brightness</label>
+          <input type="number" class="md-input" id="kf-br" value="${kf.brightness??200}" min="0" max="255"></div>
+      `;
+    } else if (track.device === 'relay' && kf.cmd === 'RELAY_ON') {
+      html += `<div class="md-field"><label class="md-label">Duration (ms)</label>
+        <input type="number" class="md-input" id="kf-dur-ms" value="${kf.durationMs??1500}"></div>`;
+    } else if (track.device === 'pwm') {
+      html += `
+        <div class="grid-2" style="gap:8px">
+          <div class="md-field"><label class="md-label">W</label><input type="number" class="md-input" id="kf-w" value="${kf.w??0}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">R</label><input type="number" class="md-input" id="kf-r" value="${kf.r??0}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">G</label><input type="number" class="md-input" id="kf-g" value="${kf.g??0}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">B</label><input type="number" class="md-input" id="kf-b" value="${kf.b??0}" min="0" max="255"></div>
+          <div class="md-field"><label class="md-label">Fade (ms)</label><input type="number" class="md-input" id="kf-fade" value="${kf.fadeMs??500}"></div>
+        </div>
+      `;
+    }
+
+    fields.innerHTML = html;
+    document.getElementById('kf-modal').classList.remove('hidden');
+  }
+
+  function applyKf() {
+    const {trackId, kfIdx} = _editKf;
+    const track = _tracks.find(t => t.id === trackId);
+    const kf = track.kfs[kfIdx];
+    kf.t   = parseFloat(document.getElementById('kf-t').value) || kf.t;
+    kf.dur = parseFloat(document.getElementById('kf-dur').value) || kf.dur;
+    kf.cmd = document.getElementById('kf-cmd')?.value || kf.cmd;
+    if (document.getElementById('kf-r')) kf.r = +document.getElementById('kf-r').value;
+    if (document.getElementById('kf-g')) kf.g = +document.getElementById('kf-g').value;
+    if (document.getElementById('kf-b')) kf.b = +document.getElementById('kf-b').value;
+    if (document.getElementById('kf-br')) kf.brightness = +document.getElementById('kf-br').value;
+    if (document.getElementById('kf-dur-ms')) kf.durationMs = +document.getElementById('kf-dur-ms').value;
+    if (document.getElementById('kf-w')) kf.w = +document.getElementById('kf-w').value;
+    if (document.getElementById('kf-fade')) kf.fadeMs = +document.getElementById('kf-fade').value;
+    track.kfs.sort((a,b) => a.t - b.t);
+    closeModal();
+    renderCanvas();
+  }
+
+  function deleteKf() {
+    const {trackId, kfIdx} = _editKf;
+    const track = _tracks.find(t => t.id === trackId);
+    track.kfs.splice(kfIdx, 1);
+    closeModal();
+    renderCanvas();
+  }
+
+  function closeModal() { document.getElementById('kf-modal').classList.add('hidden'); _editKf = null; }
+
+  // ─── Tracks ─────────────────────────────────────────────────────────────────
+  function addTrack() {
+    const devices = ['staff','relay','pwm'];
+    const dev = devices[_tracks.length % devices.length];
+    const colors = {staff:'#7C4DFF', relay:'#E53935', pwm:'#43A047'};
+    _tracks.push({
+      id: `${dev}-${_tracks.length + 1}`, device: dev,
+      label: `${dev.charAt(0).toUpperCase()+dev.slice(1)} ${_tracks.filter(t=>t.device===dev).length+1}`,
+      targetId: dev==='staff'?0xFFFF:0xFF, policy:'QUEUE',
+      color: colors[dev], kfs:[],
+    });
+    resizeCanvas();
+  }
+
+  // ─── Transport ─────────────────────────────────────────────────────────────
+  function togglePlay() {
+    _playing = !_playing;
+    document.getElementById('play-btn').textContent = _playing ? '⏸' : '▶';
+    if (_playing) { _prevTs = performance.now(); _raf = requestAnimationFrame(playLoop); }
+    else if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+  }
+
+  function playLoop(ts) {
+    const dt = (ts - _prevTs) / 1000;
+    _prevTs = ts;
+    _playT = Math.min(_playT + dt, totalDur());
+    document.getElementById('time-display').textContent = _playT.toFixed(2);
+    document.getElementById('scrub').value = (_playT / totalDur()) * 1000;
+    renderCanvas();
+    if (_playT >= totalDur()) { _playing = false; document.getElementById('play-btn').textContent = '▶'; return; }
+    _raf = requestAnimationFrame(playLoop);
+  }
+
+  function stop() {
+    _playing = false;
+    document.getElementById('play-btn').textContent = '▶';
+    if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+  }
+
+  function skipToStart() { stop(); _playT = 0; document.getElementById('scrub').value = 0;
+    document.getElementById('time-display').textContent = '0.00'; renderCanvas(); }
+
+  function onScrub() {
+    _playT = (parseInt(document.getElementById('scrub').value) / 1000) * totalDur();
+    document.getElementById('time-display').textContent = _playT.toFixed(2);
+    renderCanvas();
+  }
+
+  document.getElementById('total-dur').addEventListener('input', () => {
+    document.getElementById('dur-label').textContent = `/ ${document.getElementById('total-dur').value}s`;
+    resizeCanvas();
+  });
+
+  // ─── Build / Export ─────────────────────────────────────────────────────────
+  function buildNumber() {
+    const name = document.getElementById('num-name').value || 'Composition';
+    const id   = document.getElementById('num-id').value   || 'composition';
+    const timelines = _tracks.map(track => ({
+      device:   track.device,
+      targetId: track.targetId,
+      policy:   track.policy,
+      steps: track.kfs.map(kf => {
+        const step = {t: kf.t, cmd: kf.cmd};
+        if (kf.r !== undefined) { step.r = kf.r; step.g = kf.g; step.b = kf.b; }
+        if (kf.brightness !== undefined) step.brightness = kf.brightness;
+        if (kf.durationMs !== undefined) step.durationMs = kf.durationMs;
+        if (kf.w !== undefined) step.w = kf.w;
+        if (kf.fadeMs !== undefined) step.fadeMs = kf.fadeMs;
+        return step;
+      }),
+    }));
+    return {
+      id, name,
+      events: [{
+        id: 'evt-manual',
+        trigger: {type: 'staff_telemetry', condition: 'speed > 0'},
+        timelines: timelines.filter(tl => tl.steps.length > 0),
+      }],
+    };
+  }
+
+  function exportNumber() {
+    const data = buildNumber();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (data.id || 'composition') + '.json';
+    a.click();
+  }
+
+  async function saveToServer() {
+    const data = buildNumber();
+    const file = data.id + '.json';
+    const res = await fetch('/api/numbers/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data, file}),
+    });
+    const r = await res.json();
+    const msg = document.getElementById('save-msg');
+    msg.textContent = r.ok ? `✓ שמור: ${r.file}` : `✗ ${r.error}`;
+    msg.style.color = r.ok ? 'var(--success)' : 'var(--error)';
+    if (r.ok) refreshLoadSel();
+  }
+
+  async function loadFromServer() {
+    document.getElementById('load-sel').focus();
+  }
+
+  async function refreshLoadSel() {
+    const res = await fetch('/api/numbers/list');
+    const data = await res.json();
+    const sel = document.getElementById('load-sel');
+    sel.innerHTML = '<option value="">— טען קיים —</option>' +
+      (data.numbers||[]).map(n => `<option value="${n.file}">${n.name}</option>`).join('');
+  }
+
+  async function onLoadSel() {
+    const file = document.getElementById('load-sel').value;
+    if (!file) return;
+    const res = await fetch(`/api/numbers/get?file=${encodeURIComponent(file)}`);
+    const data = await res.json();
+    if (!data.ok) { alert('שגיאה'); return; }
+    importNumber(data.data);
+  }
+
+  function importNumber(num) {
+    document.getElementById('num-name').value = num.name || '';
+    document.getElementById('num-id').value   = num.id   || '';
+    _tracks = [];
+    const evt = (num.events || [])[0];
+    if (!evt) { resizeCanvas(); return; }
+    (evt.timelines || []).forEach((tl, i) => {
+      const colors = {staff:'#7C4DFF', relay:'#E53935', pwm:'#43A047'};
+      _tracks.push({
+        id: `${tl.device}-${i+1}`, device: tl.device,
+        label: `${tl.device.charAt(0).toUpperCase()+tl.device.slice(1)} ${i+1}`,
+        targetId: tl.targetId ?? 0xFFFF, policy: tl.policy || 'QUEUE',
+        color: colors[tl.device] || '#666',
+        kfs: (tl.steps||[]).map(s => ({
+          t: s.t, dur: 0.5, cmd: s.cmd,
+          r: s.r, g: s.g, b: s.b, brightness: s.brightness,
+          durationMs: s.durationMs, w: s.w, fadeMs: s.fadeMs,
+        })),
+      });
+    });
+    resizeCanvas();
+  }
+
+  // Init
+  refreshLoadSel();
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  </script>
+</body>
+</html>

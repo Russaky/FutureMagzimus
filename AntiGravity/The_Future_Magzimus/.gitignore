@@ -1,2 +1,11 @@
 firmware/wifi_credentials.ini
 firmware/*/.pio/
+firmware/bridge/include/credentials.h
+
+# Debug artifacts from esptool/disassembly sessions — not deliverables
+arduino_dump.bin
+arduino_dump.hex
+disassembly.txt
+claude_agent
+scratch/
+.DS_Store

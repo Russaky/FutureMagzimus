@@ -1,0 +1,41 @@
+{
+  "id": "staff-angle-colors",
+  "name": "Staff Angle Colors — Green/Red by Rotation Angle",
+  "description": "Staff lights GREEN while rotation angle is in [20,340] degrees and RED near vertical (0/360 ± 20 degrees). Mapped from telemetry pitch (-180..180, 0=vertical): |angle|>=20 → green zone, |angle|<20 → red zone (vertical band).",
+  "events": [
+    {
+      "id": "evt-angle-green",
+      "trigger": {
+        "type": "staff_telemetry",
+        "condition": "abs(angle) >= 20"
+      },
+      "timelines": [
+        {
+          "device": "staff",
+          "targetId": 65535,
+          "policy": "INTERRUPT",
+          "steps": [
+            { "t": 0.0, "cmd": "LED_SOLID", "r": 0, "g": 255, "b": 0, "brightness": 200 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evt-angle-red",
+      "trigger": {
+        "type": "staff_telemetry",
+        "condition": "abs(angle) < 20"
+      },
+      "timelines": [
+        {
+          "device": "staff",
+          "targetId": 65535,
+          "policy": "INTERRUPT",
+          "steps": [
+            { "t": 0.0, "cmd": "LED_SOLID", "r": 255, "g": 0, "b": 0, "brightness": 200 }
+          ]
+        }
+      ]
+    }
+  ]
+}

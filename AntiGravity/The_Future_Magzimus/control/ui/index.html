@@ -5,9 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TheFutureMAGZIMUS — Control</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="/shared.css">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: monospace; background: #0a0a0a; color: #e0e0e0; padding: 24px; }
+    /* dark control override */
+    body { font-family: monospace; background: #0a0a0a; color: #e0e0e0; padding: 24px 24px 24px calc(var(--sidebar-w) + 24px); }
+    body.has-sidebar { display: block; }
+    body.has-sidebar .page-content { margin-left: 0; }
+    /* sidebar dark override */
+    .sidebar { background: #111; border-right-color: #222; }
+    .sidebar-logo { color: #6c48d0; border-bottom-color: #222; }
+    .nav-item { color: #888; }
+    .nav-item:hover { background: #1a1a1a; color: #ddd; }
+    .nav-item.active { background: #1a1030; color: #c0a0ff; }
     h1 { color: #fff; font-size: 1.2rem; margin-bottom: 24px; letter-spacing: 2px; }
     h2 { font-size: 0.85rem; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
 
@@ -32,6 +41,12 @@
     input[type=color] { width: 40px; height: 28px; border: none; background: none; cursor: pointer; }
     .val { font-size: 0.75rem; color: #4af; min-width: 32px; text-align: right; }
 
+    .effect-legend { list-style: none; margin: 0 0 12px; padding: 10px 12px;
+      background: #0d0d0d; border-radius: 4px; direction: rtl; }
+    .effect-legend li { font-size: 0.8rem; color: #bbb; line-height: 1.9; }
+    .effect-legend li + li { margin-top: 2px; }
+    .effect-legend b { color: #7fd4ff; }
+
     button {
       background: #1a1a2e; border: 1px solid #333; color: #e0e0e0;
       padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;
@@ -47,6 +62,7 @@
   </style>
 </head>
 <body>
+  <script src="/nav.js"></script>
   <h1>THE FUTURE MAGZIMUS <span id="status-dot"></span></h1>
 
   <div class="grid">
@@ -69,11 +85,30 @@
     <div class="panel">
       <h2>Staff LEDs</h2>
       <div class="row">
+        <label>Effect</label>
+        <select id="led-effect" onchange="onEffectChange()">
+          <option value="1">Solid</option>
+          <option value="2">Sparkle</option>
+          <option value="3">Flame</option>
+          <option value="4">Rainbow</option>
+          <option value="7">Vertical (green/blue)</option>
+          <option value="5">Angle → Color (auto)</option>
+        </select>
+      </div>
+      <ul class="effect-legend">
+        <li><b>Solid</b> — צבע אחיד קבוע</li>
+        <li><b>Sparkle</b> — נצנוצים אקראיים; העוצמה = צפיפות</li>
+        <li><b>Flame</b> — להבה מרצדת, אוטומטי</li>
+        <li><b>Rainbow</b> — קשת מסתובבת, אוטומטי</li>
+        <li><b>Vertical</b> — ירוק כשזקוף, כחול בכל זווית אחרת</li>
+        <li><b>Angle → Color</b> — ברירת המחדל: הצבע נגזר ברציפות מזווית ה-IMU (אדום↔ירוק↔כחול)</li>
+      </ul>
+      <div class="row" id="led-color-row">
         <label>Color</label>
         <input type="color" id="led-color" value="#ff0000">
       </div>
-      <div class="row">
-        <label>Brightness</label>
+      <div class="row" id="led-bright-row">
+        <label id="led-bright-label">Brightness</label>
         <input type="range" id="led-bright" min="0" max="255" value="150">
         <span class="val" id="led-bright-val">150</span>
       </div>
@@ -84,7 +119,7 @@
         </select>
       </div>
       <div class="btn-row">
-        <button onclick="sendStaff(1)">Set Color</button>
+        <button onclick="sendStaffEffect()">Activate</button>
         <button class="danger" onclick="sendStaff(0)">Off</button>
       </div>
     </div>
@@ -109,32 +144,31 @@
       </div>
     </div>
 
-    <!-- WRGB -->
+    <!-- DMX -->
     <div class="panel full">
-      <h2>WRGB Lights</h2>
+      <h2>DMX512 Lights <span style="color:#555; text-transform:none; letter-spacing:0;">(4ch W,R,G,B — MAX485)</span></h2>
+      <div class="row"><label>Start Addr</label>
+        <input type="number" id="dmx-addr" min="1" max="509" value="1" style="width:70px; background:#1a1a1a; border:1px solid #333; color:#e0e0e0; padding:4px 8px; border-radius:4px; font-family:monospace;">
+      </div>
       <div class="row"><label>White</label>
-        <input type="range" id="pwm-w" min="0" max="255" value="0">
-        <span class="val" id="pwm-w-val">0</span>
+        <input type="range" id="dmx-w" min="0" max="255" value="0">
+        <span class="val" id="dmx-w-val">0</span>
       </div>
       <div class="row"><label>Red</label>
-        <input type="range" id="pwm-r" min="0" max="255" value="0">
-        <span class="val" id="pwm-r-val">0</span>
+        <input type="range" id="dmx-r" min="0" max="255" value="0">
+        <span class="val" id="dmx-r-val">0</span>
       </div>
       <div class="row"><label>Green</label>
-        <input type="range" id="pwm-g" min="0" max="255" value="0">
-        <span class="val" id="pwm-g-val">0</span>
+        <input type="range" id="dmx-g" min="0" max="255" value="0">
+        <span class="val" id="dmx-g-val">0</span>
       </div>
       <div class="row"><label>Blue</label>
-        <input type="range" id="pwm-b" min="0" max="255" value="0">
-        <span class="val" id="pwm-b-val">0</span>
-      </div>
-      <div class="row"><label>Fade (ms)</label>
-        <input type="range" id="pwm-fade" min="0" max="3000" step="100" value="500">
-        <span class="val" id="pwm-fade-val">500ms</span>
+        <input type="range" id="dmx-b" min="0" max="255" value="0">
+        <span class="val" id="dmx-b-val">0</span>
       </div>
       <div class="btn-row">
-        <button onclick="sendPWM()">Set</button>
-        <button class="danger" onclick="clearPWM()">Off</button>
+        <button onclick="sendDMX()">Set</button>
+        <button class="danger" onclick="clearDMX()">Off</button>
       </div>
     </div>
   </div>
@@ -164,7 +198,7 @@
         document.getElementById(id + '-val').textContent = e.target.value + suffix);
 
     bind('led-bright'); bind('relay-dur', 'ms');
-    bind('pwm-w'); bind('pwm-r'); bind('pwm-g'); bind('pwm-b'); bind('pwm-fade', 'ms');
+    bind('dmx-w'); bind('dmx-r'); bind('dmx-g'); bind('dmx-b');
 
     function hexToRgb(hex) {
       const r = parseInt(hex.slice(1,3),16);
@@ -187,6 +221,59 @@
       });
     }
 
+    // Effects the firmware actually supports (Protocol.h CmdType) — no invented
+    // presets, this just switches the staff between its real LED states.
+    const NEEDS_COLOR = new Set([1, 2]);       // Solid, Sparkle
+    const NEEDS_BRIGHT = new Set([1, 2]);      // Solid (brightness), Sparkle (density)
+
+    function onEffectChange() {
+      const cmdType = +document.getElementById('led-effect').value;
+      document.getElementById('led-color-row').style.display  = NEEDS_COLOR.has(cmdType)  ? '' : 'none';
+      document.getElementById('led-bright-row').style.display = NEEDS_BRIGHT.has(cmdType) ? '' : 'none';
+      document.getElementById('led-bright-label').textContent = cmdType === 2 ? 'Density' : 'Brightness';
+    }
+
+    function sendStaffEffect() {
+      sendStaff(+document.getElementById('led-effect').value);
+    }
+
+    onEffectChange();
+
+    // ─── Engine reactivity lock ───
+    // A demo Number (numbers/example.json) is loaded by the engine at all times and
+    // reacts to live staff telemetry (e.g. speed > 2.0 → INTERRUPT red/blue/off).
+    // Manual commands from this panel bypass the engine entirely, so without this
+    // lock any staff movement re-triggers the demo and stomps on whatever effect
+    // was just activated. Swap to an empty Number (numbers/stress-test.json) while
+    // this page is open, restore the original on exit.
+    let _engineNumberPath = null;
+    async function lockEngineReactivity() {
+      try {
+        const res = await fetch('/api/numbers/list');
+        const data = await res.json();
+        const list = data.numbers || [];
+        const current = list.find(n => n.file === 'example.json');
+        const empty = list.find(n => n.file === 'stress-test.json');
+        if (current) _engineNumberPath = current.path;
+        if (empty) {
+          await fetch('/api/number/load', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ path: empty.path })
+          });
+        }
+      } catch (_) {}
+    }
+    function unlockEngineReactivity() {
+      if (!_engineNumberPath) return;
+      fetch('/api/number/load', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: _engineNumberPath }),
+        keepalive: true
+      }).catch(() => {});
+    }
+    window.addEventListener('beforeunload', unlockEngineReactivity);
+    lockEngineReactivity();
+
     function sendRelay(state) {
       post('/api/command/relay', {
         targetId:   +document.getElementById('relay-target').value,
@@ -195,19 +282,18 @@
       });
     }
 
-    function sendPWM() {
-      post('/api/command/pwm', {
-        targetId: 255,
-        w: +document.getElementById('pwm-w').value,
-        r: +document.getElementById('pwm-r').value,
-        g: +document.getElementById('pwm-g').value,
-        b: +document.getElementById('pwm-b').value,
-        fadeMs: +document.getElementById('pwm-fade').value
+    function sendDMX() {
+      post('/api/command/dmx', {
+        targetAddr: +document.getElementById('dmx-addr').value,
+        w: +document.getElementById('dmx-w').value,
+        r: +document.getElementById('dmx-r').value,
+        g: +document.getElementById('dmx-g').value,
+        b: +document.getElementById('dmx-b').value,
       });
     }
 
-    function clearPWM() {
-      post('/api/command/pwm', { targetId:255, w:0,r:0,g:0,b:0, fadeMs:500 });
+    function clearDMX() {
+      post('/api/command/dmx', { targetAddr: +document.getElementById('dmx-addr').value, w:0,r:0,g:0,b:0 });
     }
   </script>
 </body>

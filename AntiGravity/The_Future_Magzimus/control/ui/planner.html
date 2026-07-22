@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Show Runner — MAGZIMUS</title>
+  <link rel="stylesheet" href="/shared.css">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    body.has-sidebar .page-content { margin-left: var(--sidebar-w); }
+    .page-content { display: flex; gap: 0; height: 100vh; overflow: hidden; }
+
+    /* Mode banner */
+    .mode-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      padding: 8px 20px; text-align: center; font-weight: 700; font-size: .9rem;
+      transition: all .3s; display: none;
+    }
+    .mode-banner.show-mode { display: block; background: #B71C1C; color: white; }
+
+    /* Lineup panel */
+    .lineup-panel {
+      width: 280px; flex-shrink: 0; border-right: 1px solid var(--outline-variant);
+      background: var(--surface); display: flex; flex-direction: column; overflow: hidden;
+    }
+    .lineup-header {
+      padding: 14px; border-bottom: 1px solid var(--outline-variant);
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .lineup-header h3 { margin: 0; font-size: .95rem; font-weight: 600; flex: 1; }
+    #lineup-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .lineup-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--outline-variant); margin-bottom: 6px;
+      background: var(--surface); transition: all .15s; position: relative;
+    }
+    .lineup-item:hover  { border-color: var(--primary); background: var(--primary-container); }
+    .lineup-item.active { border-color: var(--primary); background: var(--primary-container); border-left: 4px solid var(--primary); }
+    .lineup-item .num-idx { font-size: .7rem; color: var(--on-surface-variant); min-width: 18px; }
+    .lineup-item .num-title { font-size: .87rem; font-weight: 500; flex: 1; }
+    .lineup-item .num-evt   { font-size: .72rem; color: var(--on-surface-variant); }
+    .drag-handle { cursor: grab; color: var(--on-surface-variant); padding: 0 4px; }
+    .lineup-controls { padding: 12px; border-top: 1px solid var(--outline-variant); flex-shrink: 0; }
+
+    /* Main area */
+    .main-area { flex: 1; overflow-y: auto; padding: 20px; }
+    .section-title { font-size: .8rem; font-weight: 700; color: var(--on-surface-variant);
+                     letter-spacing: .6px; margin: 0 0 10px; }
+
+    /* Health grid */
+    .health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+    .health-card {
+      padding: 12px; border-radius: 10px; border: 1px solid var(--outline-variant);
+      background: var(--surface); position: relative;
+    }
+    .health-card .hc-icon  { font-size: 1.4rem; margin-bottom: 4px; }
+    .health-card .hc-label { font-size: .7rem; color: var(--on-surface-variant); margin-bottom: 2px; }
+    .health-card .hc-id    { font-size: .75rem; font-weight: 600; font-family: monospace; }
+    .health-card .hc-val   { font-size: .8rem; color: var(--on-surface-variant); }
+    .status-pip { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 10px; right: 10px; }
+    .pip-live   { background: #4CAF50; animation: pulse 1.5s infinite; }
+    .pip-dead   { background: #ccc; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+    /* Telemetry bar */
+    .tel-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tel-chip {
+      padding: 6px 12px; border-radius: 20px; background: var(--surface-container);
+      border: 1px solid var(--outline-variant); font-size: .78rem;
+    }
+    .tel-chip span { font-weight: 600; font-family: monospace; }
+
+    /* Accumulator / ShowTimer row */
+    .controls-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-start; }
+    .ctrl-card { flex: 1; min-width: 200px; border: 1px solid var(--outline-variant);
+                 border-radius: 12px; padding: 14px; background: var(--surface); }
+    .ctrl-card h4 { margin: 0 0 10px; font-size: .85rem; font-weight: 600; }
+    .progress-bar-wrap { height: 12px; background: var(--surface-container); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+    .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 6px; transition: width .3s; }
+    .timer-display { font-size: 2.5rem; font-weight: 700; font-family: monospace; text-align: center; color: var(--primary); }
+
+    /* Flags strip */
+    .flags-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .flag-badge { padding: 2px 10px; border-radius: 20px; font-size: .72rem; font-weight: 600; }
+    .flag-on  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+    .flag-off { background: var(--surface-container); color: var(--on-surface-variant); border: 1px solid var(--outline-variant); }
+
+    /* Number detail */
+    .event-card { border: 1px solid var(--outline-variant); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+    .event-header { padding: 10px 14px; background: var(--surface-container);
+                    display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--outline-variant); }
+    .event-body   { padding: 10px 14px; }
+    .tl-row  { display: flex; align-items: center; gap: 6px; padding: 4px 0;
+               border-bottom: 1px solid var(--outline-variant); }
+    .tl-row:last-child { border: none; }
+    .dev-badge { padding: 2px 8px; border-radius: 20px; font-size: .68rem; font-weight: 700; }
+    .dev-staff { background:#EDE7F6; color:#5E35B1; }
+    .dev-relay { background:#FCE8E6; color:#C62828; }
+    .dev-pwm   { background:#E8F5E9; color:#2E7D32; }
+    .dev-progressbar { background:#FFF3E0; color:#E65100; }
+    .dev-mic   { background:#E3F2FD; color:#1565C0; }
+    .dev-pedal { background:#F3E5F5; color:#6A1B9A; }
+
+    /* Modal */
+    .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:none;align-items:center;justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal-box { background:white;border-radius:16px;padding:28px;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2); }
+    .modal-box h3 { margin:0 0 12px; }
+    .modal-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:20px; }
+  </style>
+</head>
+<body>
+<script src="/nav.js"></script>
+
+<!-- Mode Banner (SHOW MODE indicator) -->
+<div class="mode-banner" id="mode-banner">🔴 SHOW MODE — OTA Disabled | Read-Only Canvas</div>
+
+<!-- Confirm SHOW MODE modal -->
+<div class="modal-overlay" id="modal-show">
+  <div class="modal-box">
+    <h3>Enter SHOW MODE?</h3>
+    <p style="font-size:.87rem;color:#555">SHOW MODE disables OTA upload and makes the canvas read-only. All non-critical features are hidden.</p>
+    <div class="modal-actions">
+      <button class="md-btn md-btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="md-btn md-btn-filled" style="background:#D32F2F" onclick="enterShowMode()">Enter SHOW MODE</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-content" id="main-content">
+  <!-- Lineup Panel -->
+  <div class="lineup-panel">
+    <div class="lineup-header">
+      <h3>Show Lineup</h3>
+      <button class="md-btn md-btn-outline md-btn-sm" onclick="loadNumbers()">↻</button>
+    </div>
+    <div id="lineup-list"><div style="padding:20px;text-align:center;color:var(--on-surface-variant);font-size:.8rem">Loading…</div></div>
+    <div class="lineup-controls">
+      <button class="md-btn md-btn-tonal" style="width:100%;margin-bottom:8px" onclick="window.location='/editor.html'">➕ New Number</button>
+      <button class="md-btn md-btn-filled" id="btn-show-mode" style="width:100%;background:#388E3C"
+        onclick="toggleShowMode()">▶ Enter SHOW MODE</button>
+    </div>
+  </div>
+
+  <!-- Main Area -->
+  <div class="main-area">
+    <!-- Connection status -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span class="status-dot" id="conn-dot"></span>
+      <span id="conn-label" style="font-size:.87rem;color:var(--on-surface-variant)">Connecting…</span>
+      <span id="loaded-badge"></span>
+      <span style="flex:1"></span>
+      <button class="md-btn md-btn-outline md-btn-sm" onclick="discover()">🔍 Discover</button>
+    </div>
+
+    <!-- Telemetry -->
+    <div class="section-title">REAL-TIME TELEMETRY</div>
+    <div class="tel-bar" id="tel-bar">
+      <div class="tel-chip">Staff <span id="t-id">—</span></div>
+      <div class="tel-chip">Speed <span id="t-spd">—</span> rad/s</div>
+      <div class="tel-chip">Angle <span id="t-ang">—</span>°</div>
+      <div class="tel-chip">Mic RMS <span id="t-rms">—</span></div>
+      <div class="tel-chip">Mic Freq <span id="t-freq">—</span> Hz</div>
+    </div>
+    <div class="flags-strip" id="flags-strip">
+      <span class="flag-badge flag-off" id="flag-throw">throw</span>
+      <span class="flag-badge flag-off" id="flag-catch">catch</span>
+      <span class="flag-badge flag-off" id="flag-impact">impact</span>
+      <span class="flag-badge flag-off" id="flag-orient">orient: —</span>
+      <span class="flag-badge flag-off" id="flag-spin">spin: —</span>
+    </div>
+
+    <!-- Controls row: ShowTimer + Accumulator -->
+    <div class="controls-row">
+      <div class="ctrl-card">
+        <h4>⏱ Show Timer</h4>
+        <div class="timer-display" id="timer-display">—:——</div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <input type="number" id="timer-duration" value="60" min="5" max="600"
+            class="prop-input" style="width:70px" placeholder="sec">
+          <button class="md-btn md-btn-filled md-btn-sm" onclick="startTimer()">▶ Start</button>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="stopTimer()">■ Stop</button>
+        </div>
+      </div>
+      <div class="ctrl-card">
+        <h4>📊 Accumulator</h4>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="acc-bar" style="width:0%"></div></div>
+        <div style="font-size:.8rem;text-align:center;margin-bottom:8px"><span id="acc-value">0</span>%</div>
+        <div style="display:flex;gap:6px">
+          <input type="number" id="acc-decay" value="0" min="0" max="20" step="0.5"
+            class="prop-input" style="width:70px" placeholder="decay %/s">
+          <button class="md-btn md-btn-tonal md-btn-sm" onclick="configAcc()">⚙</button>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="pulseAcc()">+1 Pulse</button>
+          <button class="md-btn md-btn-outline md-btn-sm" onclick="resetAcc()">↺</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Network health -->
+    <div class="section-title">NETWORK HEALTH</div>
+    <div class="health-grid" id="health-grid">
+      <div style="padding:20px;font-size:.8rem;color:var(--on-surface-variant)">Run Discover to see devices</div>
+    </div>
+
+    <!-- Active number detail -->
+    <div id="number-detail">
+      <div style="text-align:center;padding:40px;color:var(--on-surface-variant)">
+        <div style="font-size:2.5rem;margin-bottom:12px">🎬</div>
+        <div>Select a number from the lineup</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let _showMode     = false;
+let _activeIdx    = -1;
+let _lineup       = [];
+let _timerInterval= null;
+let _accValue     = 0;
+
+// ─── Socket ────────────────────────────────────────────────────────────────
+socket.on('connect',    () => { document.getElementById('conn-dot').classList.add('live');
+                                document.getElementById('conn-label').textContent = 'Connected'; });
+socket.on('disconnect', () => { document.getElementById('conn-dot').classList.remove('live');
+                                document.getElementById('conn-label').textContent = 'Disconnected'; });
+
+socket.on('telemetry', d => {
+  if (d._type === 'pedal_event') {
+    handlePedal(d.eventType);
+    return;
+  }
+  if (d._type === 'mic_telemetry') {
+    document.getElementById('t-rms').textContent  = d.rms?.toFixed(3) ?? '—';
+    document.getElementById('t-freq').textContent = d.frequency?.toFixed(0) ?? '—';
+    return;
+  }
+  // Staff telemetry
+  document.getElementById('t-id').textContent  = d.deviceId?.toString(16).toUpperCase().padStart(4,'0') ?? '—';
+  document.getElementById('t-spd').textContent = d.speed?.toFixed(2) ?? '—';
+  document.getElementById('t-ang').textContent = d.angle?.toFixed(1) ?? '—';
+  updateFlag('flag-throw',  d.throw,  'throw');
+  updateFlag('flag-catch',  d.catch,  'catch');
+  updateFlag('flag-impact', d.impact, 'impact');
+  const orientEl = document.getElementById('flag-orient');
+  orientEl.textContent = `orient: ${d.orientation??'—'}`;
+  orientEl.className = `flag-badge flag-${d.orientation?'on':'off'}`;
+  const spinEl = document.getElementById('flag-spin');
+  spinEl.textContent = `spin: ${d.spin_cw ? 'CW' : 'CCW'}`;
+  spinEl.className = 'flag-badge flag-on';
+  addHealthCard(d.deviceId, 'staff', `${d.speed?.toFixed(2)} rad/s`);
+});
+
+socket.on('mic_telemetry', d => {
+  document.getElementById('t-rms').textContent  = d.rms?.toFixed(3) ?? '—';
+  document.getElementById('t-freq').textContent = d.frequency?.toFixed(0) ?? '—';
+  addHealthCard(d.deviceId, 'mic', `RMS:${d.rms?.toFixed(3)}`);
+});
+
+socket.on('pedal_event', d => { handlePedal(d.eventType); });
+
+socket.on('showtimer_tick', d => {
+  const sec = Math.ceil(d.remaining);
+  const m = Math.floor(sec/60), s = sec%60;
+  document.getElementById('timer-display').textContent = `${m}:${String(s).padStart(2,'0')}`;
+});
+
+socket.on('showtimer_done', () => {
+  document.getElementById('timer-display').textContent = '0:00';
+  document.getElementById('acc-bar').style.width = '0%';
+  document.getElementById('acc-value').textContent = '0';
+  _accValue = 0;
+});
+
+socket.on('scored', d => {
+  _accValue = d.value;
+  document.getElementById('acc-bar').style.width = d.value + '%';
+  document.getElementById('acc-value').textContent = d.value.toFixed(1);
+});
+
+socket.on('climax', () => {
+  document.getElementById('acc-bar').style.background = '#D32F2F';
+  setTimeout(() => document.getElementById('acc-bar').style.background = 'var(--primary)', 1000);
+});
+
+socket.on('identity', d => {
+  addHealthCard(d.deviceId, d.role, d.ip !== '0.0.0.0' ? `IP: ${d.ip}` : 'offline');
+});
+
+// ─── Pedal navigation (reserved: double=next, triple=back) ────────────────
+function handlePedal(eventType) {
+  if (eventType === 'double' || eventType === 2) goNext();
+  else if (eventType === 'triple' || eventType === 3) goBack();
+}
+
+function goNext() {
+  if (_lineup.length === 0) return;
+  const next = (_activeIdx + 1) % _lineup.length;
+  selectNumber(next);
+}
+
+function goBack() {
+  if (_lineup.length === 0) return;
+  const prev = (_activeIdx - 1 + _lineup.length) % _lineup.length;
+  selectNumber(prev);
+}
+
+// ─── Health grid ──────────────────────────────────────────────────────────
+const _healthMap = {};
+
+function addHealthCard(deviceId, role, detail) {
+  const key = `${role}-${deviceId}`;
+  if (!_healthMap[key]) {
+    _healthMap[key] = {deviceId, role, detail, alive: true, lastSeen: Date.now()};
+  } else {
+    _healthMap[key].alive = true;
+    _healthMap[key].lastSeen = Date.now();
+    _healthMap[key].detail = detail;
+  }
+  renderHealthGrid();
+}
+
+const ROLE_ICONS = {staff:'🎯',relay:'💨',pwm:'💡',progressbar:'📊',mic:'🎤',pedal:'🦶',unknown:'❓'};
+
+function renderHealthGrid() {
+  const grid = document.getElementById('health-grid');
+  const cards = Object.values(_healthMap);
+  if (!cards.length) { grid.innerHTML='<div style="font-size:.8rem;color:var(--on-surface-variant)">No devices discovered</div>'; return; }
+  grid.innerHTML = cards.map(c => {
+    const alive = (Date.now() - c.lastSeen) < 5000;
+    return `<div class="health-card">
+      <div class="status-pip ${alive?'pip-live':'pip-dead'}"></div>
+      <div class="hc-icon">${ROLE_ICONS[c.role]||'❓'}</div>
+      <div class="hc-label">${c.role}</div>
+      <div class="hc-id">${String(c.deviceId).padStart(4,'0')}</div>
+      <div class="hc-val">${c.detail||''}</div>
+    </div>`;
+  }).join('');
+}
+
+// Stale detection
+setInterval(() => {
+  let changed = false;
+  for (const k of Object.keys(_healthMap)) {
+    const was = _healthMap[k].alive;
+    _healthMap[k].alive = (Date.now() - _healthMap[k].lastSeen) < 5000;
+    if (was !== _healthMap[k].alive) changed = true;
+  }
+  if (changed) renderHealthGrid();
+}, 2000);
+
+// ─── Lineup ───────────────────────────────────────────────────────────────
+async function loadNumbers() {
+  const r = await fetch('/api/numbers/list');
+  const j = await r.json();
+  _lineup = j.numbers || [];
+  renderLineup();
+}
+
+function renderLineup() {
+  const el = document.getElementById('lineup-list');
+  if (!_lineup.length) { el.innerHTML='<div style="padding:20px;text-align:center;font-size:.8rem;color:var(--on-surface-variant)">No numbers</div>'; return; }
+  el.innerHTML = _lineup.map((n,i) => `
+    <div class="lineup-item ${_activeIdx===i?'active':''}" onclick="selectNumber(${i})">
+      <span class="drag-handle">⠿</span>
+      <span class="num-idx">${i+1}</span>
+      <div style="flex:1">
+        <div class="num-title">${n.name}</div>
+        <div class="num-evt">${n.events} events · ${n.file}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function selectNumber(idx) {
+  if (idx < 0 || idx >= _lineup.length) return;
+  _activeIdx = idx;
+  renderLineup();
+  const n = _lineup[idx];
+  // Transition fade: brief visual indicator
+  const badge = document.getElementById('loaded-badge');
+  badge.innerHTML = `<span class="md-chip" style="background:var(--secondary-container)">⏳ טוען…</span>`;
+  await fetch('/api/number/load', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({path: n.path})});
+  badge.innerHTML = `<span class="md-chip success">▶ ${n.name}</span>`;
+  const r = await fetch(`/api/numbers/get?file=${encodeURIComponent(n.file)}`);
+  const j = await r.json();
+  if (j.ok) renderDetail(j.data);
+}
+
+function renderDetail(num) {
+  const events = num.events || [];
+  document.getElementById('number-detail').innerHTML = `
+    <div class="section-title" style="margin-top:16px">${num.name}</div>
+    ${events.map(ev=>`
+      <div class="event-card">
+        <div class="event-header">
+          <span style="font-size:1.1rem">⚡</span>
+          <div style="font-size:.85rem;flex:1">${ev.trigger?.type??'?'}: <code>${ev.trigger?.condition??''}</code></div>
+          <span class="md-chip">${(ev.timelines||[]).length}</span>
+        </div>
+        <div class="event-body">
+          ${(ev.timelines||[]).map(tl=>`
+            <div class="tl-row">
+              <span class="dev-badge dev-${tl.device}">${tl.device}</span>
+              <span style="font-size:.78rem;color:var(--on-surface-variant)">${tl.targetId??tl.targetSlot??'?'}</span>
+              <span style="font-size:.72rem;color:var(--on-surface-variant)">[${tl.policy}]</span>
+              <span style="margin-left:auto;font-size:.72rem;color:var(--on-surface-variant)">${tl.steps?.length??0} steps</span>
+            </div>`).join('')}
+        </div>
+      </div>`).join('')}`;
+}
+
+// ─── Discover ─────────────────────────────────────────────────────────────
+async function discover() {
+  const r = await fetch('/api/discover', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({timeout:2.5})});
+  const j = await r.json();
+  if (j.ok) {
+    for (const d of j.devices||[]) addHealthCard(d.deviceId, d.role, d.ip);
+  }
+}
+
+// ─── ShowTimer ────────────────────────────────────────────────────────────
+async function startTimer() {
+  const dur = parseFloat(document.getElementById('timer-duration').value)||60;
+  await fetch('/api/showtimer/start', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({duration: dur})});
+}
+
+async function stopTimer() {
+  await fetch('/api/showtimer/stop', {method:'POST'});
+  document.getElementById('timer-display').textContent = '—:——';
+}
+
+// ─── Accumulator ─────────────────────────────────────────────────────────
+async function configAcc() {
+  const decay = parseFloat(document.getElementById('acc-decay').value)||0;
+  await fetch('/api/accumulator/configure', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({decayRate: decay})});
+}
+
+async function pulseAcc() {
+  await fetch('/api/accumulator/pulse', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount:1})});
+}
+
+async function resetAcc() {
+  await fetch('/api/accumulator/reset', {method:'POST'});
+  document.getElementById('acc-bar').style.width = '0%';
+  document.getElementById('acc-value').textContent = '0';
+}
+
+// ─── SHOW MODE ───────────────────────────────────────────────────────────
+function toggleShowMode() {
+  if (_showMode) exitShowMode();
+  else document.getElementById('modal-show').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-show').classList.remove('open'); }
+
+function enterShowMode() {
+  closeModal();
+  _showMode = true;
+  document.getElementById('mode-banner').classList.add('show-mode');
+  document.getElementById('btn-show-mode').textContent = '✕ Exit SHOW MODE';
+  document.getElementById('btn-show-mode').style.background = '#D32F2F';
+}
+
+function exitShowMode() {
+  _showMode = false;
+  document.getElementById('mode-banner').classList.remove('show-mode');
+  document.getElementById('btn-show-mode').textContent = '▶ Enter SHOW MODE';
+  document.getElementById('btn-show-mode').style.background = '#388E3C';
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+function updateFlag(id, val, label) {
+  const el = document.getElementById(id);
+  el.textContent = label;
+  el.className = `flag-badge flag-${val?'on':'off'}`;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+loadNumbers();
+setInterval(loadNumbers, 15000);
+</script>
+</body>
+</html>

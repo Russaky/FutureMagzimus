@@ -1,12 +1,16 @@
 #pragma once
 #include <stdint.h>
 
-// Hub → PWM (8 bytes)
-struct __attribute__((packed)) PWMCommand {
-    uint8_t  groupId;
-    uint8_t  targetId;   // 0xFF = all PWM nodes, or last byte of MAC
-    uint8_t  w, r, g, b;
-    uint16_t fadeMs;     // fade duration (0 = instant)
+// Bridge → Node (5 bytes)
+struct __attribute__((packed)) light_cmd_t {
+    uint8_t targetId;   // 0 = broadcast to all nodes
+    uint8_t w, r, g, b;
+};
+
+// Node → Bridge (5 bytes) — sent only when the node's state actually changes
+struct __attribute__((packed)) light_ack_t {
+    uint8_t nodeId;
+    uint8_t w, r, g, b;
 };
 
 // ─── Discovery ────────────────────────────────────────────────────────────────
