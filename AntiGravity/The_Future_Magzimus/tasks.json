@@ -1621,5 +1621,28 @@
     "dependencies": [
       "effects-pixel-taxonomy-remap-002"
     ]
+  },
+  {
+    "id": "effects-lab-redesign-viewport-004",
+    "title": "Effects Lab v2: עיצוב viewport-fit + faders אנכיים + hue-slider/hex + IMU-Reactive per-parameter",
+    "description": "לפי משוב משתמש על הגרסה הקודמת: (1) עיצוב מחדש — sidebar (סוג מכשיר + אפקטים שמורים) + תוכן ראשי שנכנס במסך בלי גלילה. (2) DMX/WRGB/Progress Bar preview מוסתר לגמרי כשעובדים על Staff. (3) Speed/Intensity/Param1/Param2 כ-faders אנכיים. (4) Toggle switch עם border+shadow (היה שקוף). (5) Secondary color עם toggle נפרד — אופציונלי/נדרש לפי תבנית. (6) צבע: hue-slider יחיד סורק גלגל צבעים + hex read/write + RGB נומרי, במקום 3 סליידרי R/G/B. (7) IMU-Reactive: רשימת 'פרמטר יעד' נבנית דינמית לפי הטמפלייט הנוכחי (כולל Param2 ו-Color/Hue) — דרש הרחבת firmware (ReactiveParam: PARAM2=4, HUE=5; resolveEffectivePrimary() ל-CHSV חי). (8) הוסר Anim Speed/FPS ידני — פריוויו רץ בקצב TELEMETRY_MS האמיתי (50ms). (9) תוקן 'Test on Hardware לא מגיב' — שורת כפתורים sticky, לא זזה יותר מ-reflow.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "position:sticky על שורת הפעולות — מונע page-reflow מלהזיז כפתור בין קליקים",
+        "רשימת reactive-target נבנית מחדש דינמית מתוך GENERIC_TEMPLATE_META בכל שינוי טמפלייט/colorMode",
+        "Secondary=primary על החוט כש-checkbox כבוי (collapse ל-solid) — בלי שינוי פרוטוקול"
+      ],
+      "constraints": [
+        "ReactiveParam הורחב (PARAM2/HUE) — אין שינוי גודל struct, reactiveParam כבר בייט גולמי 0-255",
+        "HUE reactive רלוונטי רק כש-colorMode==COLOR_CUSTOM (no-op ב-palette mode)",
+        "דורש צריבה מחדש ל-Master+Slave"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "effects-lab-unify-color-003"
+    ]
   }
 ]

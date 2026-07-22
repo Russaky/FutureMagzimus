@@ -1,5 +1,38 @@
 # DONE — לוג משימות שבוצעו
 
+## [2026-07-22] Effects Lab v2: עיצוב מחדש (viewport-fit, faders אנכיים, hue-slider+hex), IMU-Reactive per-parameter, checkpoint git
+
+### רקע וגיבוי
+לפני הסבב הזה: `git commit`+`git push` של כל המצב הצבור (119 קבצים, ראה commit הקודם למעלה) לענף חדש `NO-UI` ב-`origin` — **לא ל-main**, כדי לא לגעת בו. `firmware/bridge/include/credentials.h` (SSID/password ריקים אבל מיועד להישאר מקומי לפי ה-comment שבו) הוצא מה-commit ונוסף ל-`.gitignore`. commit נוסף בסוף הסבב הזה (ראה "קבצים" למטה) — שני ה-commits יחד הם נקודת השחזור.
+
+### באגים/בקשות שטופלו
+1. **"Test on Hardware לא מגיב"** — אובחן: reflow קטן בעמוד (שינוי גובה dropdown/שורות צבע) הזיז את הכפתור ~15-20px, קליק חוזר על אותו פיקסל פספס אותו. תוקן: שורת הכפתורים הפכה ל-`position:sticky;bottom:0` — לא זזה יותר בשום מצב. אומת: 3 קליקים רצופים על אותו קואורדינטה בדיוק, 3 הצלחות עם timestamp שונה בכל אחת.
+2. **עמוד גדול מה-viewport, בזבוז מקום** — עיצוב מחדש מלא: sidebar קומפקטי (230px: בורר סוג-מכשיר + רשימת אפקטים שמורים) + תוכן ראשי. כל העמוד נכנס עכשיו במסך רגיל בלי גלילה.
+3. **DMX/WRGB/Progress Bar preview** — מוצג רק כש-deviceType בפועל הוא dmx/pwm/progressbar, מוסתר לגמרי (לא placeholder) כשעובדים על Staff.
+4. **סליידרים אנכיים** — Speed/Intensity/Param1/Param2 הפכו לשורת faders אנכית (כמו קונסולת תאורה אמיתית), קומפקטי יותר אנכית.
+5. **Toggle switch לא תקין ויזואלית** — נוספו border+shadow ברורים (היה שקוף/דהוי על רקע בהיר).
+6. **Secondary color** — toggle נפרד ("Use Secondary"): נכבה כברירת מחדל, נדלק אוטומטית ונעול כש-הטמפלייט **דורש** אותו (Sparkle — spark color), אופציונלי בשאר. כשכבוי, sr/sg/sb נשלחים זהים ל-pr/pg/pb (הגרדיאנט קורס לצבע אחיד) — בלי שינוי firmware.
+7. **צבע: hue slider יחיד + hex + RGB** — הוחלפו 3 הסליידרים הנפרדים (R/G/B) שנבנו בסבב הקודם ב-slider אחד שסורק את כל גלגל הצבעים (רקע rainbow-gradient) + שדה hex לכתיבה/קריאה + תצוגה נומרית R/G/B. State אמיתי (`_primaryColor`/`_secondaryColor`) מעודכן משני המקורות.
+8. **IMU-Reactive per-parameter** — רשימת "פרמטר יעד" נבנית **דינמית** לפי הטמפלייט הנוכחי בפועל (למשל Fade מציג Speed/Intensity/Min Bright/Max Bright, לא "Param 1" גנרי) + אופציית **Color (Hue)** כש-Custom Color פעיל. דרש הרחבת firmware:
+   - `firmware/staff/include/Protocol.h` — `ReactiveParam` קיבל `REACTIVE_PARAM_PARAM2=4` ו-`REACTIVE_PARAM_HUE=5` (אין שינוי גודל struct — reactiveParam כבר בייט גולמי).
+   - `firmware/staff/src/main.cpp` — `resolveEffectParams()` מחזיר גם param2 + hue-override flag; `resolveEffectivePrimary()` חדש בונה CHSV(hue,255,255) חי כשreactiveParam==HUE; שני נקודות הרינדור (Master render + Sync send ל-Slave) עודכנו להשתמש בערכים הנפתרים, לא הסטטיים.
+   - `control/server/protocol.py` — קבועים תואמים (`REACTIVE_PARAM_PARAM2`, `REACTIVE_PARAM_HUE`) לתיעוד, אין שינוי wire format.
+9. **הסרת Anim Speed/FPS** — הפריוויו רץ עכשיו בקצב קבוע התואם את `TELEMETRY_MS` האמיתי של ה-firmware (50ms/20Hz), לא בקרה ידנית של המשתמש.
+
+### נבדק — חי בדפדפן + חומרה מחוברת
+- `pio run -e staff -e staff-c3` נקי, נצרב לשני הבקרים (`AD44`/`028C`), boot נקי מאומת ב-serial.
+- Sparkle: Secondary נדלק ונעול אוטומטית. Fade: רשימת יעד ריאקטיבי בדיוק `Speed, Intensity, Min Bright, Max Bright, Color (Hue)`.
+- בחירת Color (Hue) כיעד ריאקטיבי → סליידר ה-Hue של Primary עובר למצב מנוטרל עם תג "🔴 LIVE" (עקבי עם שאר הפרמטרים).
+- Test on Hardware: 3 קליקים רצופים על אותה קואורדינטה בדיוק לאחר קונפיגורציה עם Custom Color + Color(Hue) reactive — כל השלושה הצליחו (timestamps שונים, ✓ לא נתקע).
+- **לא נבדק ויזואלית על ה-LEDs הפיזיים** (אין מצלמה) — הבינדינג ל-Hue במיוחד כדאי לאמת ויזואלית (לסובב את המקל ולוודא שהצבע *הראשי* עובר בגלגל הצבעים).
+
+### קבצים
+- `firmware/staff/include/Protocol.h`, `firmware/staff/src/main.cpp`
+- `control/server/protocol.py`
+- `control/ui/effects.html`
+- `.gitignore` (+credentials.h, +arduino_dump.*, +disassembly.txt, +claude_agent, +scratch/, +.DS_Store)
+- `tasks.json`
+
 ## [2026-07-22] תיקון: Test on Hardware "לא מגיב" — הוחלף color picker נייטיבי בסליידרי RGB
 
 ### הבאג

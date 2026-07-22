@@ -109,16 +109,31 @@ static uint8_t resolveReactiveValue(uint8_t source, float angle, float speed, ui
 
 // Applies the active reactive binding (if any) on top of the static fx*
 // values — called fresh each tick, both for the master's own render and
-// for what gets mirrored to the slave, so the two always agree.
-static void resolveEffectParams(uint8_t &outSpeed, uint8_t &outIntensity, uint8_t &outParam1) {
-    outSpeed = fxSpeed; outIntensity = fxIntensity; outParam1 = fxParam1;
+// for what gets mirrored to the slave, so the two always agree. HUE doesn't
+// override a numeric param — it overrides the effective primary color
+// (caller applies it via CHSV), so it's reported separately.
+static void resolveEffectParams(uint8_t &outSpeed, uint8_t &outIntensity, uint8_t &outParam1,
+                                 uint8_t &outParam2, bool &outHueActive, uint8_t &outHue) {
+    outSpeed = fxSpeed; outIntensity = fxIntensity; outParam1 = fxParam1; outParam2 = fxParam2;
+    outHueActive = false; outHue = 0;
     if (fxReactiveSource == REACTIVE_NONE) return;
     uint8_t v = resolveReactiveValue(fxReactiveSource, lastAngle, lastSpeed, lastFlags);
     switch (fxReactiveParam) {
         case REACTIVE_PARAM_SPEED:     outSpeed = v;     break;
         case REACTIVE_PARAM_INTENSITY: outIntensity = v; break;
         case REACTIVE_PARAM_PARAM1:    outParam1 = v;    break;
+        case REACTIVE_PARAM_PARAM2:    outParam2 = v;    break;
+        case REACTIVE_PARAM_HUE:       outHueActive = true; outHue = v; break;
     }
+}
+// Resolves the effective primary color for this tick: the static fxPr/fxPg/fxPb
+// unless a HUE reactive binding is active, in which case it's replaced by a
+// live CHSV(hue, 255, 255) sweep. Only meaningful when colorMode==COLOR_CUSTOM
+// (resolvePalette() ignores these bytes entirely in palette mode).
+static void resolveEffectivePrimary(bool hueActive, uint8_t hue, uint8_t &pr, uint8_t &pg, uint8_t &pb) {
+    if (!hueActive) { pr = fxPr; pg = fxPg; pb = fxPb; return; }
+    CRGB c = CHSV(hue, 255, 255);
+    pr = c.r; pg = c.g; pb = c.b;
 }
 static bool     imuOk            = false;
 static bool     g_txEnabled      = true;
@@ -252,11 +267,14 @@ void loop() {
             // packets to the slave (see 2026-07-19 root-cause-2 in DONE.md).
             if (g_txEnabled) {
                 if (genericEffectActive) {
-                    uint8_t rSpeed, rIntensity, rParam1;
-                    resolveEffectParams(rSpeed, rIntensity, rParam1);
+                    uint8_t rSpeed, rIntensity, rParam1, rParam2, rHue;
+                    bool rHueActive;
+                    resolveEffectParams(rSpeed, rIntensity, rParam1, rParam2, rHueActive, rHue);
+                    uint8_t ePr, ePg, ePb;
+                    resolveEffectivePrimary(rHueActive, rHue, ePr, ePg, ePb);
                     EspNow::sendEffectSyncPacket(fxTemplate, fxPalette, rSpeed,
-                                                  rIntensity, rParam1, fxParam2,
-                                                  fxColorMode, fxPr, fxPg, fxPb,
+                                                  rIntensity, rParam1, rParam2,
+                                                  fxColorMode, ePr, ePg, ePb,
                                                   fxSr, fxSg, fxSb);
                 } else {
                     uint8_t tiltHue     = (uint8_t)(((lastAngle + 90.0f) / 180.0f) * 170.0f);
@@ -329,12 +347,15 @@ void loop() {
             } else if (verticalActive) {
                 LedManager::vertical(lastAngle, currentHalfWindow);
             } else if (genericEffectActive) {
-                uint8_t rSpeed, rIntensity, rParam1;
-                resolveEffectParams(rSpeed, rIntensity, rParam1);
+                uint8_t rSpeed, rIntensity, rParam1, rParam2, rHue;
+                bool rHueActive;
+                resolveEffectParams(rSpeed, rIntensity, rParam1, rParam2, rHueActive, rHue);
+                uint8_t ePr, ePg, ePb;
+                resolveEffectivePrimary(rHueActive, rHue, ePr, ePg, ePb);
                 CRGBPalette16 pal = LedManager::resolvePalette(fxPalette, fxColorMode,
-                                                                fxPr, fxPg, fxPb, fxSr, fxSg, fxSb);
+                                                                ePr, ePg, ePb, fxSr, fxSg, fxSb);
                 LedManager::genericEffect(fxTemplate, pal, rSpeed, rIntensity,
-                                           rParam1, fxParam2, lastAngle, now);
+                                           rParam1, rParam2, lastAngle, now);
             }
         }
     }

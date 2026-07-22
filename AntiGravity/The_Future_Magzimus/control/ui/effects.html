@@ -6,47 +6,89 @@
   <title>Effects Lab — MAGZIMUS</title>
   <link rel="stylesheet" href="/shared.css">
   <style>
-    .page-content { padding: 28px; max-width: 1400px; }
+    .page-content { padding: 16px 20px; max-width: 1400px; }
+    .page-header { margin-bottom: 12px; }
 
-    /* Sliders/dropdowns/toggles are the main content — centered column,
-       not squeezed into a side card. */
-    .lab-main { max-width: 760px; margin: 0 auto; }
+    /* Sidebar (device type + saved effects) + main content — fits the
+       viewport instead of one long scroll of stacked cards. */
+    .lab-shell { display: flex; gap: 14px; align-items: flex-start; }
+    .lab-sidebar { width: 230px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+    .lab-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 
-    canvas#led-preview { border-radius: 10px; border: 1px solid var(--outline-variant);
-                         display: block; width: 100%; background: #111; }
-    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .row label { font-size: .78rem; min-width: 90px; color: var(--on-surface-variant); }
+    .md-card { padding: 12px 14px; }
+    .md-card-title { margin-bottom: 8px; }
+    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .row label { font-size: .76rem; min-width: 78px; color: var(--on-surface-variant); flex-shrink: 0; }
     input[type=range] { flex: 1; accent-color: var(--primary); }
-    .val-badge { font-size: .78rem; min-width: 60px; text-align: left; font-family: monospace; color: var(--on-surface); }
-    .swatch { width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--outline-variant); flex-shrink: 0; }
-    .section-label { font-size: .82rem; font-weight: 600; color: var(--on-surface-variant);
-                     text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
-    .led-info { font-size: .72rem; color: var(--on-surface-variant); text-align: center; margin-top: 6px; }
-    .anim-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .val-badge { font-size: .76rem; min-width: 50px; text-align: left; font-family: monospace; color: var(--on-surface); }
+    .section-label { font-size: .78rem; font-weight: 600; color: var(--on-surface-variant);
+                     text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .led-info { font-size: .7rem; color: var(--on-surface-variant); text-align: center; margin-top: 4px; }
+    .anim-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 
-    /* Real toggle switch — used for every binary choice (color source,
-       Gradient direction, etc.) instead of overloading a 0-255 slider. */
+    canvas#led-preview { border-radius: 8px; border: 1px solid var(--outline-variant);
+                         display: block; width: 100%; background: #111; }
+
+    /* Real toggle switch — solid border + shadow so it reads clearly against
+       the light theme (the flat borderless version blended into the page). */
     .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; inset: 0; cursor: pointer; background: var(--outline-variant);
-                     transition: .15s; border-radius: 22px; }
-    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px;
-                            background: #fff; transition: .15s; border-radius: 50%; }
-    .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+    .toggle-slider { position: absolute; inset: 0; cursor: pointer; background: #c7c2cc;
+                     border: 1px solid var(--outline); transition: .15s; border-radius: 22px;
+                     box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
+    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 2px; bottom: 2px;
+                            background: #fff; border: 1px solid rgba(0,0,0,.15); box-shadow: 0 1px 3px rgba(0,0,0,.35);
+                            transition: .15s; border-radius: 50%; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--primary); border-color: var(--primary); }
     .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+    .toggle-switch input:disabled + .toggle-slider { opacity: .5; cursor: not-allowed; }
+    .toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .toggle-row label { font-size: .76rem; color: var(--on-surface-variant); }
 
-    /* Saved-presets chip bar — compact, not a persistent sidebar. */
-    .fx-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
-    .fx-chip {
-      display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
-      border: 1px solid var(--outline-variant); background: var(--surface); cursor: pointer;
-      font-size: .78rem; transition: all .15s;
+    /* Hue slider — a visible rainbow sweep instead of a plain gray track */
+    input.hue-slider {
+      -webkit-appearance: none; appearance: none; height: 14px; border-radius: 7px;
+      background: linear-gradient(to left, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+      border: 1px solid var(--outline-variant);
     }
-    .fx-chip:hover { background: var(--surface-variant); }
-    .fx-chip.active { background: var(--primary-container); border-color: var(--primary); color: var(--on-primary-container); }
-    .fx-chip button { background: none; border: none; cursor: pointer; opacity: .5; font-size: .75rem; padding: 0; }
-    .fx-chip button:hover { opacity: 1; }
-    .fx-empty { font-size: .78rem; color: var(--on-surface-variant); padding: 4px 2px; }
+    input.hue-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+      background: #fff; border: 2px solid #333; box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: pointer;
+    }
+    .color-block { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+    .color-block-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+    .color-hex-line { display: flex; align-items: center; gap: 8px; }
+    .color-hex-line input[type=text] {
+      width: 84px; font-family: monospace; font-size: .78rem; padding: 4px 6px;
+      border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface); color: var(--on-surface);
+    }
+    .swatch { width: 24px; height: 24px; border-radius: 5px; border: 1px solid var(--outline-variant); flex-shrink: 0; }
+    .rgb-readout { font-size: .7rem; font-family: monospace; color: var(--on-surface-variant); }
+
+    /* Vertical fader row for the performance parameters */
+    .vfader-row { display: flex; gap: 18px; justify-content: center; padding: 6px 0 2px; }
+    .vfader { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 60px; }
+    .vfader input[type=range] {
+      writing-mode: vertical-lr; direction: rtl; -webkit-appearance: slider-vertical;
+      width: 10px; height: 120px; accent-color: var(--primary);
+    }
+    .vfader label { font-size: .7rem; color: var(--on-surface-variant); text-align: center; min-width: 0; }
+    .vfader .val-badge { min-width: 0; text-align: center; }
+    .vfader .toggle-switch { margin-top: 6px; }
+
+    /* Saved presets — sidebar list, not a floating chip bar */
+    .fx-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+    .fx-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      padding: 8px 10px; border-radius: 8px; border: 1px solid var(--outline-variant);
+      background: var(--surface); cursor: pointer; font-size: .78rem; transition: all .15s;
+    }
+    .fx-item:hover { background: var(--surface-variant); }
+    .fx-item.active { background: var(--primary-container); border-color: var(--primary); color: var(--on-primary-container); }
+    .fx-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .fx-item-del { background: none; border: none; cursor: pointer; opacity: .5; font-size: .78rem; padding: 2px 4px; }
+    .fx-item-del:hover { opacity: 1; }
+    .fx-empty { font-size: .76rem; color: var(--on-surface-variant); text-align: center; padding: 10px 4px; }
   </style>
 </head>
 <body>
@@ -58,196 +100,190 @@
       <p class="page-subtitle">מעבדה לעיצוב, תצוגה מקדימה ושמירה של אפקטי LED — Staff / DMX / WRGB / Progress Bar</p>
     </div>
 
-    <!-- Preview: single LED row (matches what the firmware algorithm actually
-         computes — NUM_LEDS=26 — not the 5-strip physical zigzag mirror). -->
-    <div class="md-card" style="margin-bottom:20px">
-      <div class="section-label">Staff LED Preview (26 LEDs)</div>
-      <div class="anim-controls">
-        <button class="md-btn md-btn-tonal md-btn-sm" id="play-btn" onclick="togglePlay()">⏸ Pause</button>
-        <label style="font-size:.8rem;color:var(--on-surface-variant)">Anim Speed</label>
-        <input type="range" id="anim-speed" min="1" max="10" value="4" style="width:100px">
-        <span id="fps-label" style="font-size:.75rem;color:var(--on-surface-variant)">FPS: —</span>
-      </div>
-      <canvas id="led-preview" width="900" height="80"></canvas>
-      <div class="led-info" id="led-info">Hover over LED to inspect · תצוגה מקדימה בקנבס — קירוב, לא רינדור firmware מדויק</div>
-
-      <div class="divider"></div>
-      <div class="section-label" style="margin-top:4px">Color Preview (DMX / WRGB / Progress Bar)</div>
-      <canvas class="strip-canvas" id="wrgb-preview" width="600" height="40" style="border-radius:6px;border:1px solid var(--outline-variant);width:100%;height:40px;display:block"></canvas>
-    </div>
-
-    <!-- Saved presets: compact chip bar, not a persistent sidebar -->
-    <div class="md-card" style="margin-bottom:20px">
-      <div class="md-card-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>אפקטים שמורים</span>
-        <button class="md-btn md-btn-tonal md-btn-sm" onclick="newEffect()">+ אפקט חדש</button>
-      </div>
-      <div class="fx-chip-list" id="fx-list"><div class="fx-empty">טוען…</div></div>
-    </div>
-
-    <!-- Main editor: sliders/dropdowns/toggles are the primary content -->
-    <div class="lab-main">
-      <div class="md-card" style="margin-bottom:16px">
-        <div class="md-card-title">שם + מכשיר</div>
-        <div class="row"><label>שם</label><input class="md-input" id="fx-name" placeholder="לבה איטית…" style="flex:1"></div>
-        <div class="row">
-          <label>סוג מכשיר</label>
-          <select class="md-select" id="fx-device" onchange="onDeviceChange()" style="flex:1">
+    <div class="lab-shell">
+      <!-- Sidebar: device type + saved effects -->
+      <div class="lab-sidebar">
+        <div class="md-card">
+          <div class="md-card-title">מכשיר</div>
+          <select class="md-select" id="fx-device" onchange="onDeviceChange()" style="width:100%">
             <option value="staff">Staff (LED strip)</option>
             <option value="dmx">DMX (4ch WRGB)</option>
             <option value="pwm">WRGB Lights (PWM)</option>
             <option value="progressbar">Progress Bar</option>
           </select>
         </div>
-        <div class="led-info" style="text-align:right;margin-bottom:4px">
-          המכשיר הספציפי (Target) וה-Policy נבחרים בשלב חיבור האפקט לטריגר ב-Banks, לא כאן.
+        <div class="md-card">
+          <div class="md-card-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>אפקטים שמורים</span>
+            <button class="md-btn md-btn-tonal md-btn-sm" onclick="newEffect()">+ חדש</button>
+          </div>
+          <div class="fx-list" id="fx-list"><div class="fx-empty">טוען…</div></div>
         </div>
       </div>
 
-      <!-- STAFF: single unified effect model (Legacy Effect retired — Solid/
-           Sparkle/Rainbow/Flame/Vertical all live here as generic templates) -->
-      <div class="md-card" id="staff-card" style="margin-bottom:16px">
-        <div class="md-card-title">Staff Effect</div>
-        <div class="row"><label>Template</label>
-          <select class="md-select" id="fx-template" onchange="onGenericChange()" style="flex:1">
-            <option value="0">Solid</option>
-            <option value="1">Gradient</option>
-            <option value="2">Wave</option>
-            <option value="3">Fade</option>
-            <option value="4">Sparkle</option>
-            <option value="5">Theater Chase</option>
-            <option value="6">Flame</option>
-            <option value="7">Vertical</option>
-          </select>
+      <!-- Main content -->
+      <div class="lab-main">
+        <!-- Preview -->
+        <div class="md-card">
+          <div class="section-label">Staff LED Preview (26 LEDs)</div>
+          <canvas id="led-preview" width="900" height="70"></canvas>
+          <div class="led-info" id="led-info">Hover over LED to inspect · תצוגה מקדימה בקנבס — קירוב, לא רינדור firmware מדויק</div>
         </div>
 
-        <div id="fx-color-section">
-          <div class="row"><label>Color Source</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="fx-color-custom" onchange="onColorModeChange()">
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="val-badge" id="v-color-mode">Palette</span>
+        <!-- DMX/WRGB/Progress Bar color preview — only relevant for those devices -->
+        <div class="md-card" id="color-preview-card" style="display:none">
+          <div class="section-label">Color Preview</div>
+          <canvas class="strip-canvas" id="wrgb-preview" width="600" height="40" style="border-radius:6px;border:1px solid var(--outline-variant);width:100%;height:40px;display:block"></canvas>
+        </div>
+
+        <div class="md-card">
+          <div class="row"><label>שם</label><input class="md-input" id="fx-name" placeholder="לבה איטית…" style="flex:1"></div>
+          <div class="led-info" style="text-align:right;margin:0">
+            המכשיר הספציפי (Target) וה-Policy נבחרים בשלב חיבור האפקט לטריגר ב-Banks, לא כאן.
           </div>
-          <div class="row" id="row-fx-palette"><label>Palette</label>
-            <select class="md-select" id="fx-palette" onchange="onGenericChange()" style="flex:1">
-              <option value="0">Rainbow</option>
-              <option value="1">Heat</option>
-              <option value="2">Lava</option>
-              <option value="3">Ocean</option>
-              <option value="4">Forest</option>
-              <option value="5">Party</option>
+        </div>
+
+        <!-- STAFF: single unified effect model -->
+        <div class="md-card" id="staff-card">
+          <div class="md-card-title">Staff Effect</div>
+          <div class="row"><label>Template</label>
+            <select class="md-select" id="fx-template" onchange="onGenericChange()" style="flex:1">
+              <option value="0">Solid</option>
+              <option value="1">Gradient</option>
+              <option value="2">Wave</option>
+              <option value="3">Fade</option>
+              <option value="4">Sparkle</option>
+              <option value="5">Theater Chase</option>
+              <option value="6">Flame</option>
+              <option value="7">Vertical</option>
             </select>
           </div>
-          <div id="row-fx-primary" style="display:none">
-            <div class="row"><label>Primary R</label>
-              <input type="range" id="fx-pr" min="0" max="255" value="255" oninput="onGenericChange()">
-              <span class="val-badge" id="v-pr">255</span>
+
+          <div id="fx-color-section">
+            <div class="toggle-row">
+              <span style="font-size:.76rem">Palette</span>
+              <label class="toggle-switch"><input type="checkbox" id="fx-color-custom" onchange="onColorModeChange()"><span class="toggle-slider"></span></label>
+              <span style="font-size:.76rem">Custom</span>
+              <span style="flex:1"></span>
+              <label class="toggle-row" style="margin:0" id="row-fx-use-secondary">
+                <span style="font-size:.76rem">Secondary</span>
+                <label class="toggle-switch"><input type="checkbox" id="fx-use-secondary" onchange="onSecondaryToggle()"><span class="toggle-slider"></span></label>
+              </label>
             </div>
-            <div class="row"><label>Primary G</label>
-              <input type="range" id="fx-pg" min="0" max="255" value="0" oninput="onGenericChange()">
-              <span class="val-badge" id="v-pg">0</span>
+            <div class="row" id="row-fx-palette"><label>Palette</label>
+              <select class="md-select" id="fx-palette" onchange="onGenericChange()" style="flex:1">
+                <option value="0">Rainbow</option>
+                <option value="1">Heat</option>
+                <option value="2">Lava</option>
+                <option value="3">Ocean</option>
+                <option value="4">Forest</option>
+                <option value="5">Party</option>
+              </select>
             </div>
-            <div class="row"><label>Primary B</label>
-              <input type="range" id="fx-pb" min="0" max="255" value="0" oninput="onGenericChange()">
-              <span class="val-badge" id="v-pb">0</span>
-              <div class="swatch" id="sw-primary" style="background:rgb(255,0,0)"></div>
+            <div class="color-block-row" id="row-fx-custom-colors" style="display:none">
+              <div class="color-block">
+                <div class="row" style="margin:0"><label>Primary</label>
+                  <input type="range" class="hue-slider" id="fx-primary-hue" min="0" max="255" value="0" oninput="onHueSlide('primary')">
+                  <span class="val-badge" id="v-primary-hue">0</span>
+                </div>
+                <div class="color-hex-line">
+                  <div class="swatch" id="sw-primary"></div>
+                  <input type="text" id="fx-primary-hex" oninput="onHexInput('primary')" maxlength="7">
+                  <span class="rgb-readout" id="rgb-primary">R255 G0 B0</span>
+                </div>
+              </div>
+              <div class="color-block" id="col-secondary">
+                <div class="row" style="margin:0"><label>Secondary</label>
+                  <input type="range" class="hue-slider" id="fx-secondary-hue" min="0" max="255" value="170" oninput="onHueSlide('secondary')">
+                  <span class="val-badge" id="v-secondary-hue">170</span>
+                </div>
+                <div class="color-hex-line">
+                  <div class="swatch" id="sw-secondary"></div>
+                  <input type="text" id="fx-secondary-hex" oninput="onHexInput('secondary')" maxlength="7">
+                  <span class="rgb-readout" id="rgb-secondary">R0 G0 B255</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div id="row-fx-secondary" style="display:none">
-            <div class="row"><label>Secondary R</label>
-              <input type="range" id="fx-sr" min="0" max="255" value="0" oninput="onGenericChange()">
-              <span class="val-badge" id="v-sr">0</span>
+
+          <div class="vfader-row">
+            <div class="vfader" id="col-fx-speed">
+              <input type="range" id="fx-speed" min="0" max="255" value="128" oninput="onGenericChange()">
+              <span class="val-badge" id="v-speed">128</span>
+              <label id="label-fx-speed">Speed</label>
             </div>
-            <div class="row"><label>Secondary G</label>
-              <input type="range" id="fx-sg" min="0" max="255" value="0" oninput="onGenericChange()">
-              <span class="val-badge" id="v-sg">0</span>
+            <div class="vfader">
+              <input type="range" id="fx-intensity" min="0" max="255" value="200" oninput="onGenericChange()">
+              <span class="val-badge" id="v-intensity">200</span>
+              <label>Intensity</label>
             </div>
-            <div class="row"><label>Secondary B</label>
-              <input type="range" id="fx-sb" min="0" max="255" value="255" oninput="onGenericChange()">
-              <span class="val-badge" id="v-sb">255</span>
-              <div class="swatch" id="sw-secondary" style="background:rgb(0,0,255)"></div>
+            <div class="vfader" id="col-fx-param1">
+              <input type="range" id="fx-param1" min="0" max="255" value="20" oninput="onGenericChange()">
+              <label class="toggle-switch" id="toggle-fx-param1" style="display:none">
+                <input type="checkbox" id="fx-param1-chk" onchange="onParamToggle('param1')">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="val-badge" id="v-param1">20</span>
+              <label id="label-fx-param1">Param 1</label>
             </div>
+            <div class="vfader" id="col-fx-param2">
+              <input type="range" id="fx-param2" min="0" max="255" value="255" oninput="onGenericChange()">
+              <label class="toggle-switch" id="toggle-fx-param2" style="display:none">
+                <input type="checkbox" id="fx-param2-chk" onchange="onParamToggle('param2')">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="val-badge" id="v-param2">255</span>
+              <label id="label-fx-param2">Param 2</label>
+            </div>
+          </div>
+
+          <div class="divider" style="margin:8px 0"></div>
+          <div class="section-label">🔴 IMU-Reactive (אופציונלי)</div>
+          <div class="row"><label>מקור חי</label>
+            <select class="md-select" id="fx-reactive-source" onchange="onReactiveChange()" style="flex:1">
+              <option value="0">— סטטי (ללא) —</option>
+              <option value="1">מהירות סיבוב</option>
+              <option value="2">זווית הטיה</option>
+              <option value="3">אוריינטציה (זקוף/אופקי/הפוך)</option>
+              <option value="4">כיוון סיבוב (CW/CCW)</option>
+            </select>
+          </div>
+          <div class="row" id="reactive-target-row" style="display:none">
+            <label>פרמטר יעד</label>
+            <select class="md-select" id="fx-reactive-param" onchange="onReactiveChange()" style="flex:1"></select>
+          </div>
+          <div class="led-info" id="reactive-note" style="display:none;text-align:right">
+            נפתר בזמן אמת על ה-Master מה-IMU שלו — אין תעבורת רדיו נוספת. כל פרמטר של האפקט (כולל הצבע) ניתן לשיוך.
           </div>
         </div>
 
-        <div class="row" id="row-fx-speed"><label id="label-fx-speed">Speed</label>
-          <input type="range" id="fx-speed" min="0" max="255" value="128" oninput="onGenericChange()">
-          <span class="val-badge" id="v-speed">128</span>
-        </div>
-        <div class="row"><label>Intensity</label>
-          <input type="range" id="fx-intensity" min="0" max="255" value="200" oninput="onGenericChange()">
-          <span class="val-badge" id="v-intensity">200</span>
-        </div>
-        <div class="row" id="row-fx-param1">
-          <label id="label-fx-param1">Param 1</label>
-          <input type="range" id="fx-param1" min="0" max="255" value="20" oninput="onGenericChange()">
-          <label class="toggle-switch" id="toggle-fx-param1" style="display:none">
-            <input type="checkbox" id="fx-param1-chk" onchange="onParamToggle('param1')">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="val-badge" id="v-param1">20</span>
-        </div>
-        <div class="row" id="row-fx-param2">
-          <label id="label-fx-param2">Param 2</label>
-          <input type="range" id="fx-param2" min="0" max="255" value="255" oninput="onGenericChange()">
-          <label class="toggle-switch" id="toggle-fx-param2" style="display:none">
-            <input type="checkbox" id="fx-param2-chk" onchange="onParamToggle('param2')">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="val-badge" id="v-param2">255</span>
+        <!-- DMX / PWM / ProgressBar: static color card -->
+        <div class="md-card" id="color-card" style="display:none">
+          <div class="md-card-title" id="color-card-title">Color</div>
+          <div class="row"><label>W</label><input type="range" id="c-w" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-w">0</span></div>
+          <div class="row"><label>R</label><input type="range" id="c-r" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-r">0</span></div>
+          <div class="row"><label>G</label><input type="range" id="c-g" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-g">0</span></div>
+          <div class="row"><label>B</label><input type="range" id="c-b" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-b">0</span></div>
+          <div class="row" id="fade-row"><label>Fade (ms)</label><input type="range" id="c-fade" min="0" max="3000" step="100" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-fade">0</span></div>
+          <div class="row" id="progress-mode-row" style="display:none">
+            <label>Mode</label>
+            <select class="md-select" id="c-mode" style="flex:1">
+              <option value="1">Solid Color</option>
+              <option value="0">Progress Fill</option>
+            </select>
+          </div>
+          <div class="row" id="progress-value-row" style="display:none">
+            <label>Value %</label><input type="range" id="c-value" min="0" max="100" value="50" oninput="onColorChange()"><span class="val-badge" id="v-c-value">50</span>
+          </div>
         </div>
 
-        <div class="divider" style="margin:10px 0"></div>
-        <div class="section-label" style="margin-bottom:8px">🔴 IMU-Reactive (אופציונלי)</div>
-        <div class="row"><label>מקור חי</label>
-          <select class="md-select" id="fx-reactive-source" onchange="onReactiveChange()" style="flex:1">
-            <option value="0">— סטטי (ללא) —</option>
-            <option value="1">מהירות סיבוב</option>
-            <option value="2">זווית הטיה</option>
-            <option value="3">אוריינטציה (זקוף/אופקי/הפוך)</option>
-            <option value="4">כיוון סיבוב (CW/CCW)</option>
-          </select>
-        </div>
-        <div class="row" id="reactive-target-row" style="display:none">
-          <label>פרמטר יעד</label>
-          <select class="md-select" id="fx-reactive-param" onchange="onReactiveChange()" style="flex:1">
-            <option value="1">Speed</option>
-            <option value="2">Intensity</option>
-            <option value="3">Param 1</option>
-          </select>
-        </div>
-        <div class="led-info" id="reactive-note" style="display:none">
-          נפתר בזמן אמת על ה-Master מה-IMU שלו — אין תעבורת רדיו נוספת.
+        <div class="flex-row" style="position:sticky;bottom:0;background:var(--surface);padding:8px 0;z-index:5">
+          <button class="md-btn md-btn-filled" id="test-btn" onclick="testEffect()">🧪 Test on Hardware</button>
+          <button class="md-btn md-btn-success" onclick="saveEffect()">💾 Save</button>
+          <button class="md-btn md-btn-error" id="del-btn" onclick="deleteEffect()" style="display:none">🗑 Delete</button>
+          <span class="led-info" id="save-status" style="margin:0"></span>
         </div>
       </div>
-
-      <!-- DMX / PWM / ProgressBar: static color card -->
-      <div class="md-card" id="color-card" style="margin-bottom:16px;display:none">
-        <div class="md-card-title" id="color-card-title">Color</div>
-        <div class="row"><label>W</label><input type="range" id="c-w" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-w">0</span></div>
-        <div class="row"><label>R</label><input type="range" id="c-r" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-r">0</span></div>
-        <div class="row"><label>G</label><input type="range" id="c-g" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-g">0</span></div>
-        <div class="row"><label>B</label><input type="range" id="c-b" min="0" max="255" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-b">0</span></div>
-        <div class="row" id="fade-row"><label>Fade (ms)</label><input type="range" id="c-fade" min="0" max="3000" step="100" value="0" oninput="onColorChange()"><span class="val-badge" id="v-c-fade">0</span></div>
-        <div class="row" id="progress-mode-row" style="display:none">
-          <label>Mode</label>
-          <select class="md-select" id="c-mode" style="flex:1">
-            <option value="1">Solid Color</option>
-            <option value="0">Progress Fill</option>
-          </select>
-        </div>
-        <div class="row" id="progress-value-row" style="display:none">
-          <label>Value %</label><input type="range" id="c-value" min="0" max="100" value="50" oninput="onColorChange()"><span class="val-badge" id="v-c-value">50</span>
-        </div>
-      </div>
-
-      <div class="flex-row">
-        <button class="md-btn md-btn-filled" onclick="testEffect()">🧪 Test on Hardware</button>
-        <button class="md-btn md-btn-success" onclick="saveEffect()">💾 Save</button>
-        <button class="md-btn md-btn-error" id="del-btn" onclick="deleteEffect()" style="display:none">🗑 Delete</button>
-      </div>
-      <div class="led-info" id="save-status"></div>
     </div>
   </div>
 
@@ -259,29 +295,29 @@
 
     // Matches firmware/staff/include/Config.h NUM_LEDS — the count the
     // generic-effect algorithm actually computes (the 5-strip physical
-    // zigzag just mirrors these same values, nothing new to preview).
+    // zigzag just mirrors these same values).
     const LED_COUNT = 26;
+    // Matches firmware TELEMETRY_MS (Config.h) — the real render/tick pace,
+    // no user-adjustable "Anim Speed" control needed.
+    const REAL_TICK_MS = 50;
     let _animFrame = null;
-    let _playing = true;
     let _tick = 0;
-    let _lastFps = 0, _fpsTimer = 0;
     let _currentId = null;         // loaded effect id, or null = new/unsaved
     let _fxCache = [];
 
+    // Authoritative color state — set by either the hue slider or the hex
+    // field, read by the preview and by buildEffectPayload().
+    let _primaryColor   = {r: 255, g: 0, b: 0};
+    let _secondaryColor = {r: 0, g: 0, b: 255};
+
     // ─── Palette approximations (matches firmware CRGBPalette16 choices) ────
     const PALETTES = [
-      // 0 Rainbow — handled specially via HSL wheel
-      null,
-      // 1 Heat: black -> red -> yellow -> white
-      [[0,0,0],[128,0,0],[255,80,0],[255,220,60],[255,255,255]],
-      // 2 Lava: black -> deep red -> orange -> yellow-white
-      [[0,0,0],[100,0,0],[200,20,0],[255,110,0],[255,200,80]],
-      // 3 Ocean: black -> deep blue -> teal -> near-white cyan
-      [[0,0,20],[0,40,90],[0,120,150],[100,220,220]],
-      // 4 Forest: black -> dark green -> green -> yellow-green
-      [[5,15,5],[10,60,15],[60,140,30],[160,200,40]],
-      // 5 Party: magenta -> blue -> purple -> pink -> magenta
-      [[255,0,180],[120,0,255],[0,80,255],[255,0,120],[255,0,180]],
+      null, // 0 Rainbow — handled specially via HSL wheel
+      [[0,0,0],[128,0,0],[255,80,0],[255,220,60],[255,255,255]],     // 1 Heat
+      [[0,0,0],[100,0,0],[200,20,0],[255,110,0],[255,200,80]],        // 2 Lava
+      [[0,0,20],[0,40,90],[0,120,150],[100,220,220]],                 // 3 Ocean
+      [[5,15,5],[10,60,15],[60,140,30],[160,200,40]],                 // 4 Forest
+      [[255,0,180],[120,0,255],[0,80,255],[255,0,120],[255,0,180]],   // 5 Party
     ];
 
     function hslToRgb(h, s, l) {
@@ -319,9 +355,35 @@
     // building a CRGBPalette16(primary, secondary) on the firmware side.
     function customColor(t) {
       t = ((t % 1) + 1) % 1;
-      const r1 = +document.getElementById('fx-pr').value, g1 = +document.getElementById('fx-pg').value, b1 = +document.getElementById('fx-pb').value;
-      const r2 = +document.getElementById('fx-sr').value, g2 = +document.getElementById('fx-sg').value, b2 = +document.getElementById('fx-sb').value;
-      return [r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t];
+      const p = _primaryColor, s = document.getElementById('fx-use-secondary').checked ? _secondaryColor : _primaryColor;
+      return [p.r+(s.r-p.r)*t, p.g+(s.g-p.g)*t, p.b+(s.b-p.b)*t];
+    }
+
+    function rgbToHex(r,g,b) {
+      const h = n => Math.round(n).toString(16).padStart(2,'0');
+      return `#${h(r)}${h(g)}${h(b)}`;
+    }
+    function hexToRgbObj(hex) {
+      return { r: parseInt(hex.slice(1,3),16)||0, g: parseInt(hex.slice(3,5),16)||0, b: parseInt(hex.slice(5,7),16)||0 };
+    }
+    function setColorState(which, r, g, b, updateHex) {
+      const obj = { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+      if (which === 'primary') _primaryColor = obj; else _secondaryColor = obj;
+      document.getElementById(`sw-${which}`).style.background = `rgb(${obj.r},${obj.g},${obj.b})`;
+      document.getElementById(`rgb-${which}`).textContent = `R${obj.r} G${obj.g} B${obj.b}`;
+      if (updateHex) document.getElementById(`fx-${which}-hex`).value = rgbToHex(obj.r,obj.g,obj.b);
+    }
+    function onHueSlide(which) {
+      const hue = parseInt(document.getElementById(`fx-${which}-hue`).value);
+      document.getElementById(`v-${which}-hue`).textContent = hue;
+      const [r,g,b] = hslToRgb(hue/255, 1, 0.5);
+      setColorState(which, r, g, b, true);
+    }
+    function onHexInput(which) {
+      const hex = document.getElementById(`fx-${which}-hex`).value;
+      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return; // ignore while mid-typing
+      const {r,g,b} = hexToRgbObj(hex);
+      setColorState(which, r, g, b, false);
     }
 
     // ─── LED color generation — mirrors firmware/staff LedManager.genericEffect().
@@ -349,6 +411,7 @@
         if (reactiveParam === 1) speed = sim;
         else if (reactiveParam === 2) intensityByte = sim;
         else if (reactiveParam === 3) param1 = sim;
+        else if (reactiveParam === 4) param2 = sim;
       }
       const intensity  = intensityByte / 255;
       const speedFactor = 1 + speed/40;
@@ -357,39 +420,36 @@
       for (let i = 0; i < LED_COUNT; i++) {
         let c = [0,0,0];
         switch (templateId) {
-          case 0: { // SOLID
-            c = colorFn(0);
-            break;
-          }
-          case 1: { // GRADIENT (was Palette Cycle) — param1 = direction toggle
+          case 0: c = colorFn(0); break; // SOLID
+          case 1: { // GRADIENT — param1 = direction toggle
             const dir = param1 >= 128 ? -1 : 1;
             c = colorFn(i/LED_COUNT + dir*tick*0.004*speedFactor);
             break;
           }
-          case 2: { // WAVE (was Sinelon) — param1 = trail width
+          case 2: { // WAVE — param1 = trail width
             const pos = Math.round(((Math.sin(tick*0.02*speedFactor)+1)/2) * (LED_COUNT-1));
             const dist = Math.abs(i - pos);
             const trail = Math.max(0, 1 - dist/(6+param1/10));
             c = colorFn(tick*0.01).map(v => v*trail);
             break;
           }
-          case 3: { // FADE (was BPM) — param1 = min brightness, param2 = max brightness
+          case 3: { // FADE — param1 = min brightness, param2 = max brightness
             const minB = param1/255, maxB = (param2 > param1 ? param2 : 255)/255;
             const beat = minB + (maxB-minB) * (Math.sin(tick*0.015*speedFactor)+1)/2;
             c = colorFn(tick*0.005 + i/LED_COUNT*0.3).map(v => v*beat);
             break;
           }
-          case 4: { // SPARKLE (was Confetti) — speed = density, param1 = decay
+          case 4: { // SPARKLE — speed = density, param1 = decay
             if (Math.random() < 0.02*speedFactor) c = colorFn(Math.random());
             break;
           }
-          case 5: { // THEATER_CHASE (unchanged, bonus)
+          case 5: { // THEATER_CHASE
             const period = Math.max(2, 10 - speed/30);
             const step = Math.floor(tick/period) % 3;
             if ((i + step) % 3 === 0) c = colorFn(i/LED_COUNT);
             break;
           }
-          case 6: { // FLAME (Fire2012-style) — speed = cooling, param1 = sparking
+          case 6: { // FLAME
             const flicker = Math.random();
             const base = Math.max(0, Math.sin(tick*0.1 + i*0.3) * 0.5 + 0.5);
             const heat = Math.min(1, base*0.7 + flicker*0.3);
@@ -440,51 +500,38 @@
 
     function drawColorPreview() {
       const dev = document.getElementById('fx-device').value;
-      let w=0,r=0,g=0,b=0;
-      if (dev !== 'staff') {
-        w = parseInt(document.getElementById('c-w').value);
-        r = parseInt(document.getElementById('c-r').value);
-        g = parseInt(document.getElementById('c-g').value);
-        b = parseInt(document.getElementById('c-b').value);
-      }
+      if (dev === 'staff') return;
+      const w = parseInt(document.getElementById('c-w').value), r = parseInt(document.getElementById('c-r').value);
+      const g = parseInt(document.getElementById('c-g').value), b = parseInt(document.getElementById('c-b').value);
       const rr=Math.min(255,w+r), gg=Math.min(255,w+g), bb=Math.min(255,w+b);
-      wrgbCtx.fillStyle = (dev !== 'staff' && (w||r||g||b)) ? `rgb(${rr},${gg},${bb})` : '#222';
-      wrgbCtx.fillRect(0, 0, wrgbCanvas.width, wrgbCanvas.height);
-      if (dev === 'staff' || (!w && !r && !g && !b)) {
+      if (w||r||g||b) {
+        wrgbCtx.fillStyle = `rgb(${rr},${gg},${bb})`;
+        wrgbCtx.fillRect(0, 0, wrgbCanvas.width, wrgbCanvas.height);
+      } else {
+        wrgbCtx.fillStyle = '#222';
+        wrgbCtx.fillRect(0, 0, wrgbCanvas.width, wrgbCanvas.height);
         wrgbCtx.fillStyle = '#555';
         wrgbCtx.font = '12px monospace';
         wrgbCtx.textAlign = 'center';
-        wrgbCtx.fillText(dev === 'staff' ? '— Staff LED preview only —' : 'OFF', wrgbCanvas.width/2, 24);
+        wrgbCtx.fillText('OFF', wrgbCanvas.width/2, 24);
         wrgbCtx.textAlign = 'left';
       }
     }
 
     let _prevTime = 0;
     function animLoop(ts) {
-      const speed = parseInt(document.getElementById('anim-speed').value);
-      const dt = ts - _prevTime;
-      if (dt > (60 / speed)) {
+      if (ts - _prevTime >= REAL_TICK_MS) {
         _tick++;
         _prevTime = ts;
         drawLEDs(getLedColors(_tick));
         drawColorPreview();
-        _fpsTimer += dt; _lastFps++;
-        if (_fpsTimer >= 1000) {
-          document.getElementById('fps-label').textContent = `FPS: ${_lastFps}`;
-          _lastFps = 0; _fpsTimer = 0;
-        }
       }
-      if (_playing) _animFrame = requestAnimationFrame(animLoop);
-    }
-    function togglePlay() {
-      _playing = !_playing;
-      document.getElementById('play-btn').textContent = _playing ? '⏸ Pause' : '▶ Play';
-      if (_playing) _animFrame = requestAnimationFrame(animLoop);
+      _animFrame = requestAnimationFrame(animLoop);
     }
 
     ledCanvas.addEventListener('mousemove', e => {
       const rect = ledCanvas.getBoundingClientRect();
-      const scaleX = ledCanvas.width / rect.width, scaleY = ledCanvas.height / rect.height;
+      const scaleX = ledCanvas.width / rect.width;
       const mx = (e.clientX - rect.left) * scaleX;
       const idx = Math.floor((mx - PAD) / cellW);
       if (idx >= 0 && idx < LED_COUNT && _lastColors[idx]) {
@@ -498,6 +545,7 @@
       const dev = document.getElementById('fx-device').value;
       document.getElementById('staff-card').style.display = dev === 'staff' ? '' : 'none';
       document.getElementById('color-card').style.display = dev === 'staff' ? 'none' : '';
+      document.getElementById('color-preview-card').style.display = dev === 'staff' ? 'none' : '';
       document.getElementById('color-card-title').textContent =
         {dmx:'DMX (4ch WRGB)', pwm:'WRGB Lights (PWM)', progressbar:'Progress Bar'}[dev] || 'Color';
       document.getElementById('fade-row').style.display = dev === 'dmx' ? 'none' : '';
@@ -507,27 +555,30 @@
 
     function onColorModeChange() {
       const custom = document.getElementById('fx-color-custom').checked;
-      document.getElementById('v-color-mode').textContent = custom ? 'Custom' : 'Palette';
       document.getElementById('row-fx-palette').style.display = custom ? 'none' : '';
-      document.getElementById('row-fx-primary').style.display = custom ? '' : 'none';
-      document.getElementById('row-fx-secondary').style.display = custom ? '' : 'none';
+      document.getElementById('row-fx-custom-colors').style.display = custom ? '' : 'none';
+      buildReactiveTargetOptions();
+    }
+
+    function onSecondaryToggle() {
+      const on = document.getElementById('fx-use-secondary').checked;
+      document.getElementById('col-secondary').style.display = on ? '' : 'none';
     }
 
     // WLED-style metadata-hiding: each template declares which of speed/param1/
     // param2 it actually uses (intensity is relevant to every color template,
-    // always shown). Matches firmware/staff/src/LedManager.cpp genericEffect().
-    // A param spec of `false` hides the row; `true` shows it with the default
-    // label; an object can override the label, cap the slider (`max`), or turn
-    // it into a toggle switch instead of a slider (`type:'toggle'`).
+    // always shown). `secondary`: false = no secondary color at all,
+    // 'optional' = user can enable it, 'required' = forced on (e.g. Sparkle's
+    // spark color). Matches firmware/staff/src/LedManager.cpp genericEffect().
     const GENERIC_TEMPLATE_META = {
-      0: { speed: false, param1: false, param2: false }, // Solid
-      1: { speed: true,  param1: { label: 'Direction', type: 'toggle', onLabel: '⟲ Reverse', offLabel: '⟳ Forward' }, param2: false }, // Gradient
-      2: { speed: true,  param1: { label: 'Width' }, param2: false }, // Wave
-      3: { speed: true,  param1: { label: 'Min Brightness' }, param2: { label: 'Max Brightness' } }, // Fade
-      4: { speed: { label: 'Density' }, param1: { label: 'Decay' }, param2: false }, // Sparkle
-      5: { speed: true,  param1: false, param2: false }, // Theater Chase
-      6: { speed: { label: 'Cooling' }, param1: { label: 'Sparking' }, param2: false }, // Flame
-      7: { speed: false, param1: { label: 'Angle Window (°)', max: 90 }, param2: false, noColor: true }, // Vertical — fixed green/blue, no palette/custom color
+      0: { speed: false, param1: false, param2: false, secondary: false }, // Solid
+      1: { speed: true,  param1: { label: 'Direction', type: 'toggle', onLabel: '⟲', offLabel: '⟳' }, param2: false, secondary: 'optional' }, // Gradient
+      2: { speed: true,  param1: { label: 'Width' }, param2: false, secondary: 'optional' }, // Wave
+      3: { speed: true,  param1: { label: 'Min Bright' }, param2: { label: 'Max Bright' }, secondary: 'optional' }, // Fade
+      4: { speed: { label: 'Density' }, param1: { label: 'Decay' }, param2: false, secondary: 'required' }, // Sparkle
+      5: { speed: true,  param1: false, param2: false, secondary: 'optional' }, // Theater Chase
+      6: { speed: { label: 'Cooling' }, param1: { label: 'Sparking' }, param2: false, secondary: 'optional' }, // Flame
+      7: { speed: false, param1: { label: 'Angle Window (°)', max: 90 }, param2: false, noColor: true }, // Vertical
     };
 
     function onParamToggle(key) {
@@ -540,19 +591,19 @@
       const meta = GENERIC_TEMPLATE_META[templateId] || {};
 
       const speedSpec = meta.speed;
-      document.getElementById('row-fx-speed').style.display = speedSpec ? '' : 'none';
+      document.getElementById('col-fx-speed').style.display = speedSpec ? '' : 'none';
       document.getElementById('label-fx-speed').textContent = (speedSpec && speedSpec.label) || 'Speed';
       document.getElementById('v-speed').textContent = document.getElementById('fx-speed').value;
       document.getElementById('v-intensity').textContent = document.getElementById('fx-intensity').value;
 
       ['param1', 'param2'].forEach(key => {
         const spec = meta[key];
-        const row     = document.getElementById(`row-fx-${key}`);
+        const col      = document.getElementById(`col-fx-${key}`);
         const rangeEl  = document.getElementById(`fx-${key}`);
         const toggleEl = document.getElementById(`toggle-fx-${key}`);
         const chkEl    = document.getElementById(`fx-${key}-chk`);
         const badge    = document.getElementById(`v-${key}`);
-        row.style.display = spec ? '' : 'none';
+        col.style.display = spec ? '' : 'none';
         if (!spec) return;
         document.getElementById(`label-fx-${key}`).textContent = spec.label || (key === 'param1' ? 'Param 1' : 'Param 2');
         rangeEl.max = spec.max || 255;
@@ -570,21 +621,36 @@
       });
 
       document.getElementById('fx-color-section').style.display = meta.noColor ? 'none' : '';
-      updateCustomColorUI();
+
+      // Secondary color availability per template
+      const secSpec = meta.secondary;
+      const secChk = document.getElementById('fx-use-secondary');
+      document.getElementById('row-fx-use-secondary').style.display = secSpec ? '' : 'none';
+      if (secSpec === 'required') { secChk.checked = true; secChk.disabled = true; }
+      else if (secSpec === 'optional') { secChk.disabled = false; }
+      else { secChk.checked = false; }
+      onSecondaryToggle();
+
+      buildReactiveTargetOptions();
     }
 
-    // Keeps the Primary/Secondary R/G/B slider badges and swatch previews in
-    // sync — replaces the native <input type=color> tooltip (it covered the
-    // controls below it and could swallow the next click, e.g. Test on Hardware).
-    function updateCustomColorUI() {
-      ['pr','pg','pb','sr','sg','sb'].forEach(id => {
-        const el = document.getElementById(`fx-${id}`), badge = document.getElementById(`v-${id}`);
-        if (el && badge) badge.textContent = el.value;
-      });
-      document.getElementById('sw-primary').style.background =
-        `rgb(${document.getElementById('fx-pr').value},${document.getElementById('fx-pg').value},${document.getElementById('fx-pb').value})`;
-      document.getElementById('sw-secondary').style.background =
-        `rgb(${document.getElementById('fx-sr').value},${document.getElementById('fx-sg').value},${document.getElementById('fx-sb').value})`;
+    // Reactive-target list adapts to what the CURRENT template actually has —
+    // e.g. Fade offers Speed/Intensity/Min/Max Brightness, not a generic
+    // "Param 1" that doesn't mean anything for this template. Color (Hue) is
+    // offered whenever Custom color is active (overrides Primary's hue live).
+    function buildReactiveTargetOptions() {
+      const templateId = parseInt(document.getElementById('fx-template').value);
+      const meta = GENERIC_TEMPLATE_META[templateId] || {};
+      const sel = document.getElementById('fx-reactive-param');
+      const prevVal = sel.value;
+      const opts = [[2, 'Intensity']];
+      if (meta.speed) opts.unshift([1, (meta.speed.label) || 'Speed']);
+      if (meta.param1) opts.push([3, meta.param1.label || 'Param 1']);
+      if (meta.param2) opts.push([4, meta.param2.label || 'Param 2']);
+      if (!meta.noColor && document.getElementById('fx-color-custom').checked) opts.push([5, 'Color (Hue)']);
+      sel.innerHTML = opts.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+      if (opts.some(([v]) => String(v) === prevVal)) sel.value = prevVal;
+      onReactiveChange();
     }
 
     function onReactiveChange() {
@@ -592,15 +658,22 @@
       document.getElementById('reactive-target-row').style.display = source ? '' : 'none';
       document.getElementById('reactive-note').style.display = source ? '' : 'none';
       const targetParam = source ? parseInt(document.getElementById('fx-reactive-param').value) : 0;
-      const map = {1:'fx-speed', 2:'fx-intensity', 3:'fx-param1'};
-      ['fx-speed','fx-intensity','fx-param1'].forEach(id => {
+      const map = {1:'fx-speed', 2:'fx-intensity', 3:'fx-param1', 4:'fx-param2'};
+      ['fx-speed','fx-intensity','fx-param1','fx-param2'].forEach(id => {
         const badge = document.getElementById('v-' + id.replace('fx-',''));
         const isLive = source && map[targetParam] === id;
-        document.getElementById(id).disabled = isLive;
-        if (badge && !isLive) badge.textContent = document.getElementById(id).value;
-        else if (badge) badge.textContent = '🔴 LIVE';
+        const el = document.getElementById(id);
+        el.disabled = isLive;
+        const chk = document.getElementById(`${id}-chk`);
+        if (chk) chk.disabled = isLive;
+        if (badge) badge.textContent = isLive ? '🔴 LIVE' : el.value;
       });
+      // Primary hue "live" indicator
+      const hueLive = source && targetParam === 5;
+      document.getElementById('fx-primary-hue').disabled = hueLive;
+      document.getElementById('rgb-primary').textContent = hueLive ? '🔴 LIVE' : `R${_primaryColor.r} G${_primaryColor.g} B${_primaryColor.b}`;
     }
+
     function onColorChange() {
       ['w','r','g','b','fade','value'].forEach(k => {
         const el = document.getElementById(`c-${k}`);
@@ -617,6 +690,8 @@
       const device = document.getElementById('fx-device').value;
       const base = { name: document.getElementById('fx-name').value.trim(), deviceType: device };
       if (device === 'staff') {
+        const useSecondary = document.getElementById('fx-use-secondary').checked;
+        const sec = useSecondary ? _secondaryColor : _primaryColor; // collapses gradient to solid when off
         Object.assign(base, {
           templateId: parseInt(document.getElementById('fx-template').value),
           paletteId:  parseInt(document.getElementById('fx-palette').value),
@@ -628,8 +703,8 @@
           reactiveParam:  parseInt(document.getElementById('fx-reactive-source').value)
                           ? parseInt(document.getElementById('fx-reactive-param').value) : 0,
           colorMode: document.getElementById('fx-color-custom').checked ? 1 : 0,
-          pr: parseInt(document.getElementById('fx-pr').value), pg: parseInt(document.getElementById('fx-pg').value), pb: parseInt(document.getElementById('fx-pb').value),
-          sr: parseInt(document.getElementById('fx-sr').value), sg: parseInt(document.getElementById('fx-sg').value), sb: parseInt(document.getElementById('fx-sb').value),
+          pr: _primaryColor.r, pg: _primaryColor.g, pb: _primaryColor.b,
+          sr: sec.r, sg: sec.g, sb: sec.b,
         });
       } else if (device === 'dmx') {
         Object.assign(base, {
@@ -665,16 +740,14 @@
         document.getElementById('fx-param1').value    = e.param1 ?? 20;
         document.getElementById('fx-param2').value    = e.param2 ?? 255;
         document.getElementById('fx-reactive-source').value = e.reactiveSource ?? 0;
-        document.getElementById('fx-reactive-param').value  = e.reactiveParam ?? 1;
         document.getElementById('fx-color-custom').checked = (e.colorMode === 1);
-        document.getElementById('fx-pr').value = e.pr ?? 255;
-        document.getElementById('fx-pg').value = e.pg ?? 0;
-        document.getElementById('fx-pb').value = e.pb ?? 0;
-        document.getElementById('fx-sr').value = e.sr ?? 0;
-        document.getElementById('fx-sg').value = e.sg ?? 0;
-        document.getElementById('fx-sb').value = e.sb ?? 255;
+        setColorState('primary', e.pr ?? 255, e.pg ?? 0, e.pb ?? 0, true);
+        const sameAsPrimary = (e.sr ?? 0) === (e.pr ?? 255) && (e.sg ?? 0) === (e.pg ?? 0) && (e.sb ?? 0) === (e.pb ?? 0);
+        setColorState('secondary', e.sr ?? 0, e.sg ?? 0, e.sb ?? 255, true);
+        document.getElementById('fx-use-secondary').checked = !sameAsPrimary;
         onColorModeChange();
         onGenericChange();
+        document.getElementById('fx-reactive-param').value = e.reactiveParam ?? 1;
         onReactiveChange();
       } else {
         document.getElementById('c-w').value = e.w ?? 0;
@@ -710,12 +783,27 @@
         .then(r => r.json());
     }
 
-    function testEffect() {
-      const payload = buildEffectPayload();
-      payload.targetId = TEST_TARGET[payload.deviceType] ?? 65535;
-      post('/api/fx/preview', payload).then(res => {
-        document.getElementById('save-status').textContent = res.ok ? '✓ נשלח לחומרה' : `✗ ${res.error||'שגיאה'}`;
-      });
+    // Disables the button + shows an in-flight label so every click gives
+    // unambiguous feedback, then always re-enables (even on error) and
+    // auto-clears the success message so a repeat click is never in doubt.
+    async function testEffect() {
+      const btn = document.getElementById('test-btn');
+      const status = document.getElementById('save-status');
+      const prevLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ שולח…';
+      try {
+        const payload = buildEffectPayload();
+        payload.targetId = TEST_TARGET[payload.deviceType] ?? 65535;
+        const res = await post('/api/fx/preview', payload);
+        status.textContent = res.ok ? `✓ נשלח לחומרה (${new Date().toLocaleTimeString('he-IL')})` : `✗ ${res.error || 'שגיאה'}`;
+      } catch (e) {
+        status.textContent = `✗ שגיאת רשת: ${e}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevLabel;
+        setTimeout(() => { if (status.textContent.startsWith('✓')) status.textContent = ''; }, 3000);
+      }
     }
 
     function saveEffect() {
@@ -755,10 +843,9 @@
       const box = document.getElementById('fx-list');
       if (!_fxCache.length) { box.innerHTML = '<div class="fx-empty">אין אפקטים שמורים עדיין</div>'; return; }
       box.innerHTML = _fxCache.map(e => `
-        <div class="fx-chip${e.id===_currentId?' active':''}" onclick="selectEffect('${e.id}')">
-          <span>${e.name||'(ללא שם)'}</span>
-          <span style="opacity:.6;font-size:.7rem">${e.deviceType}</span>
-          <button onclick="event.stopPropagation(); quickDelete('${e.id}')" title="מחק">🗑</button>
+        <div class="fx-item${e.id===_currentId?' active':''}" onclick="selectEffect('${e.id}')">
+          <div class="fx-item-name">${e.name||'(ללא שם)'}</div>
+          <button class="fx-item-del" onclick="event.stopPropagation(); quickDelete('${e.id}')" title="מחק">🗑</button>
         </div>`).join('');
     }
 
@@ -777,6 +864,8 @@
 
     // Start
     onDeviceChange();
+    setColorState('primary', 255, 0, 0, true);
+    setColorState('secondary', 0, 0, 255, true);
     onColorModeChange();
     onGenericChange();
     loadFxList();

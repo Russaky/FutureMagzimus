@@ -133,6 +133,8 @@ enum ReactiveParam : uint8_t {
     REACTIVE_PARAM_SPEED     = 1,
     REACTIVE_PARAM_INTENSITY = 2,
     REACTIVE_PARAM_PARAM1    = 3,
+    REACTIVE_PARAM_PARAM2    = 4,  // e.g. Fade's max brightness
+    REACTIVE_PARAM_HUE       = 5,  // overrides the custom-color primary hue live (CHSV, full saturation/value) — no-op if colorMode == COLOR_PALETTE
 };
 
 // Hub → Staff (19 bytes) — generic parametrized effect command.

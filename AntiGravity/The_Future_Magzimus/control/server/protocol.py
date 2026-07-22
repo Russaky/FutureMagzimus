@@ -80,6 +80,8 @@ REACTIVE_PARAM_NONE      = 0
 REACTIVE_PARAM_SPEED     = 1
 REACTIVE_PARAM_INTENSITY = 2
 REACTIVE_PARAM_PARAM1    = 3
+REACTIVE_PARAM_PARAM2    = 4
+REACTIVE_PARAM_HUE       = 5  # overrides the custom-color primary hue live; no-op if colorMode == COLOR_PALETTE
 
 # Staff telemetry flag masks
 STAFF_FLAG_THROW        = 0x01
