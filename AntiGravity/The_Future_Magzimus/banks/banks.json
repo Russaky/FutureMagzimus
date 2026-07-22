@@ -1,4 +1,93 @@
 {
-  "active": null,
-  "banks": {}
+  "active": "f393d143",
+  "banks": {
+    "f393d143": {
+      "name": "בדיקה",
+      "mappings": {
+        "fast_spin": [
+          {
+            "device": "staff",
+            "targetId": 65535,
+            "policy": "INTERRUPT",
+            "steps": [
+              {
+                "t": 0,
+                "cmd": "LED_SPARKLE",
+                "r": 0,
+                "g": 0,
+                "b": 0,
+                "density": 128
+              }
+            ]
+          }
+        ],
+        "toss": [
+          {
+            "device": "staff",
+            "targetId": 65535,
+            "policy": "INTERRUPT",
+            "steps": [
+              {
+                "t": 0,
+                "cmd": "EFFECT",
+                "effectId": "c0199320"
+              }
+            ]
+          }
+        ],
+        "roll": [
+          {
+            "device": "staff",
+            "targetId": 65535,
+            "policy": "INTERRUPT",
+            "steps": [
+              {
+                "t": 0.2,
+                "cmd": "LED_FLAME"
+              }
+            ]
+          }
+        ],
+        "catch": [
+          {
+            "device": "staff",
+            "targetId": 65535,
+            "policy": "INTERRUPT",
+            "steps": [
+              {
+                "t": 2,
+                "cmd": "LED_SOLID",
+                "r": 0,
+                "g": 255,
+                "b": 0,
+                "brightness": 255
+              }
+            ]
+          }
+        ],
+        "static_horizontal": null,
+        "static_vertical": [
+          {
+            "device": "staff",
+            "targetId": 65535,
+            "policy": "INTERRUPT",
+            "steps": [
+              {
+                "t": 0,
+                "cmd": "LED_RAINBOW"
+              }
+            ]
+          }
+        ]
+      },
+      "priorities": {
+        "catch": 1,
+        "toss": 2,
+        "fast_spin": 3,
+        "roll": 3,
+        "static_vertical": 4,
+        "static_horizontal": 6
+      }
+    }
+  }
 }

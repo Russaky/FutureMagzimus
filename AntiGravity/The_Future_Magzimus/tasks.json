@@ -1664,5 +1664,26 @@
     "dependencies": [
       "effects-lab-unify-color-003"
     ]
+  },
+  {
+    "id": "motion-trigger-trainer-006",
+    "title": "Motion Trigger Trainer — כלי כיול KNN נפרד לטריגרי Bank (fast_spin/roll מתים)",
+    "description": "פורט מפורש-ומאושר של מודל ML מ-Smart Staff (הישן) — חריגה מודעת מכלל CLAUDE.md נגד העתקת ML, לצורך זה בלבד. bank_manager.eval_fixed_trigger()'s fast_spin/roll תלויים ב-motionType שקשיח ל-MOTION_IDLE ב-firmware (קוד מת, אומת חי). נבנה: motion_features.py (48-dim per-axis, 6 צירים×8 סטטיסטיקות) + motion_classifier.py (KNN k=3 משוקלל + LOO-CV Evaluator) + trigger_sessions.py (אינדקס atomic-JSON) + motion-trainer.html (הקלטה מתויגת מוגבלת ל-6 הטריגרים+none, Train+Evaluate עם confusion matrix/F1). היקף מצומצם במפורש מהמקור לפי בקשת המשתמש: אין ספריית תנועות פתוחה, רק תיוג ל-6 הטריגרים הקבועים.",
+    "priority": 2,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "פורט 1:1 מ-motion_model.js (הגרסה עם 48-dim per-axis, לא ה-16-dim magnitude-collapsed שהתיישן ב-Ver_Beta)",
+        "atomic-JSON store pattern זהה ל-BankStore/EffectStore",
+        "שימוש חוזר מלא בתשתית /api/measure/* הקיימת — לא נבנה מסלול הקלטה מקביל"
+      ],
+      "constraints": [
+        "TRAINABLE_LABELS נגזר מ-bank_manager.FIXED_TRIGGERS בלבד, לא משוכפל",
+        "המודל המאומן (triggers/model.json) נפרד לגמרי — לא מחובר ל-engine.py/eval_fixed_trigger בסבב הזה, בכוונה (ראה תוכנית ב-~/.claude/plans/quirky-juggling-fairy.md לחיבור עתידי)",
+        "דורש restart ידני של שרת Flask אחרי כל שינוי (אין auto-reload) — נשכח פעם אחת גם בסבב הזה, גרם ל-404 זמני על העמוד החדש"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": []
   }
 ]

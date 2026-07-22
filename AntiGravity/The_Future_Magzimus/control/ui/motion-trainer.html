@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Trigger Trainer — MAGZIMUS</title>
+  <style>
+    :root {
+      --bg-1: #0a0e17; --glass: rgba(255,255,255,0.06); --glass-border: rgba(255,255,255,0.12);
+      --text: #e8ecf4; --text-dim: #8892a6;
+      --accent: #7c9cff; --ok: #3ddc84; --warn: #ffb454; --err: #ff5c7a;
+      --sidebar-w: 76px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text);
+      background: radial-gradient(circle at 15% 10%, #1c2440 0%, transparent 45%),
+                  radial-gradient(circle at 85% 90%, #241a3a 0%, transparent 50%), var(--bg-1);
+      padding: 24px 24px 24px calc(var(--sidebar-w) + 24px);
+    }
+    .glass { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px;
+             backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 8px 32px rgba(0,0,0,0.35); }
+    .page-header { margin-bottom: 20px; display: flex; align-items: baseline; gap: 12px; }
+    .page-title { font-size: 1.4rem; font-weight: 600; letter-spacing: 1px; }
+    .page-subtitle { font-size: 0.85rem; color: var(--text-dim); }
+
+    .config-row { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; font-size: 0.82rem; }
+    .config-row input { width: 60px; background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+      border-radius: 6px; color: var(--text); padding: 4px 8px; font-family: monospace; }
+
+    .label-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+    .label-card { padding: 16px; }
+    .label-card .name { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+    .label-card .count { font-size: 0.78rem; margin-bottom: 10px; }
+    .label-card .count.low { color: var(--err); }
+    .label-card .count.mid { color: var(--warn); }
+    .label-card .count.ok { color: var(--ok); }
+    .rec-btn { width: 100%; padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
+               cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,92,122,0.15);
+               color: var(--err); }
+    .rec-btn:hover:not(:disabled) { background: rgba(255,92,122,0.28); }
+    .rec-btn:disabled { opacity: 0.4; cursor: default; }
+    .rec-btn.active { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    .status-line { text-align: center; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 18px; min-height: 1.2em; }
+
+    .panel { padding: 20px; margin-bottom: 20px; }
+    .panel-title { font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase;
+                   letter-spacing: 1px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .btn { background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border); color: var(--text);
+           padding: 8px 18px; border-radius: 8px; font-size: 0.82rem; cursor: pointer; }
+    .btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-train { background: rgba(124,156,255,0.2); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    th, td { padding: 6px 8px; text-align: center; }
+    th { color: var(--text-dim); font-weight: 600; }
+    td.rowhead { text-align: right; color: var(--text-dim); }
+    .session-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+    .session-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;
+                   background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+                   border-radius: 8px; padding: 8px 12px; }
+    .session-row .tag { color: var(--accent); font-weight: 600; margin-left: 8px; }
+    .session-row button { background: none; border: none; color: var(--err); cursor: pointer; font-size: 0.85rem; }
+    .empty-state { text-align: center; padding: 16px; color: var(--text-dim); font-size: 0.8rem; }
+    .acc-big { font-size: 2rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="page-header">
+    <span class="page-title">Motion Trigger Trainer</span>
+    <span class="page-subtitle">כלי כיול נפרד — הקלטת דוגמאות מתויגות לטריגרים הקבועים של ה-Bank, ואימון מסווג KNN. לא משפיע על שום דבר חי עד לחיבור מפורש בעתיד.</span>
+  </div>
+
+  <div class="config-row glass" style="padding:12px 18px">
+    <span>משך הקלטה:</span>
+    <input type="number" id="rec-duration" value="4" min="1" max="15"> שניות
+    <span>·</span>
+    <span>הכנה לפני תחילת ההקלטה:</span>
+    <input type="number" id="rec-prep" value="3" min="0" max="10"> שניות
+  </div>
+
+  <div class="label-grid" id="label-grid"></div>
+  <div class="status-line glass" id="status-line" style="padding:10px"></div>
+
+  <div class="glass panel">
+    <div class="panel-title">
+      אימון והערכה
+      <button class="btn btn-train" id="train-btn" onclick="runTrain()">🏋 Train + Evaluate</button>
+    </div>
+    <div id="train-results">
+      <div class="empty-state">עדיין לא אומן מודל. הקלט לפחות 3 sessions (רצוי 20+ לכל טריגר, ולפחות כמה sessions של "none").</div>
+    </div>
+  </div>
+
+  <div class="glass panel">
+    <div class="panel-title">כל ה-Sessions שהוקלטו</div>
+    <div class="session-list" id="session-list"><div class="empty-state">טוען…</div></div>
+  </div>
+
+  <script>
+    const LABEL_NAMES = {
+      fast_spin: 'Fast Spin', toss: 'Toss', roll: 'Roll', catch: 'Catch',
+      static_horizontal: 'Static Horizontal', static_vertical: 'Static Vertical', none: 'None (רקע)',
+    };
+    let LABELS = Object.keys(LABEL_NAMES);
+    let _counts = {};
+    let _sessions = [];
+    let _busy = false;
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function setStatus(text) { document.getElementById('status-line').textContent = text; }
+
+    function countClass(n) { return n >= 20 ? 'ok' : (n >= 5 ? 'mid' : 'low'); }
+
+    function renderLabelGrid() {
+      const grid = document.getElementById('label-grid');
+      grid.innerHTML = LABELS.map(label => {
+        const n = _counts[label] || 0;
+        return `
+          <div class="glass label-card">
+            <div class="name">${LABEL_NAMES[label]}</div>
+            <div class="count ${countClass(n)}">${n} / 20 sessions</div>
+            <button class="rec-btn" id="rec-btn-${label}" onclick="recordTrigger('${label}')" ${_busy ? 'disabled' : ''}>⏺ Record</button>
+          </div>`;
+      }).join('');
+    }
+
+    function renderSessionList() {
+      const box = document.getElementById('session-list');
+      if (!_sessions.length) { box.innerHTML = '<div class="empty-state">אין sessions מוקלטים עדיין</div>'; return; }
+      const sorted = [..._sessions].sort((a,b) => b.recordedAt - a.recordedAt);
+      box.innerHTML = sorted.map(s => `
+        <div class="session-row">
+          <span><span class="tag">${LABEL_NAMES[s.trigger] || s.trigger}</span>${s.file} · ${s.frameCount} frames</span>
+          <button onclick="deleteSession('${s.id}')" title="מחק">🗑</button>
+        </div>`).join('');
+    }
+
+    async function refreshSessions() {
+      const res = await fetch('/api/triggers/sessions');
+      const data = await res.json();
+      if (!data.ok) return;
+      _counts = data.counts || {};
+      _sessions = data.sessions || [];
+      LABELS = data.labels || LABELS;
+      renderLabelGrid();
+      renderSessionList();
+    }
+
+    async function deleteSession(id) {
+      await fetch(`/api/triggers/sessions/${id}`, { method: 'DELETE' });
+      refreshSessions();
+    }
+
+    async function recordTrigger(label) {
+      if (_busy) return;
+      _busy = true;
+      renderLabelGrid();
+      const prep = parseInt(document.getElementById('rec-prep').value) || 0;
+      const duration = parseInt(document.getElementById('rec-duration').value) || 4;
+      const btn = document.getElementById(`rec-btn-${label}`);
+      if (btn) btn.classList.add('active');
+
+      for (let s = prep; s > 0; s--) {
+        setStatus(`${LABEL_NAMES[label]} — התכונן… מתחיל בעוד ${s}s`);
+        await sleep(1000);
+      }
+      setStatus(`${LABEL_NAMES[label]} — 🔴 עכשיו!`);
+
+      const startRes = await fetch('/api/triggers/record/start', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ trigger: label })
+      });
+      const startData = await startRes.json();
+      if (!startData.ok) {
+        setStatus(`שגיאה: ${startData.error}`);
+        _busy = false; if (btn) btn.classList.remove('active'); renderLabelGrid();
+        return;
+      }
+
+      for (let s = duration; s > 0; s--) {
+        setStatus(`${LABEL_NAMES[label]} — מקליט… ${s}s`);
+        await sleep(1000);
+      }
+
+      const stopRes = await fetch('/api/triggers/record/stop', { method: 'POST' });
+      const stopData = await stopRes.json();
+      if (!stopData.ok) {
+        setStatus(`שגיאה בעצירה: ${stopData.error}`);
+      } else {
+        setStatus(`✓ ${LABEL_NAMES[label]} נשמר — ${stopData.session.frameCount} פריימים`);
+      }
+      _busy = false;
+      if (btn) btn.classList.remove('active');
+      await refreshSessions();
+    }
+
+    function renderTrainResults(data) {
+      const box = document.getElementById('train-results');
+      if (!data.ok) {
+        box.innerHTML = `<div class="empty-state" style="color:var(--err)">שגיאה: ${data.error}</div>`;
+        return;
+      }
+      const classes = Object.keys(data.perClass);
+      let html = `<div style="display:flex;align-items:center;gap:24px;margin-bottom:16px">
+        <div><div class="acc-big" style="color:${data.accuracy >= 0.8 ? 'var(--ok)' : (data.accuracy >= 0.5 ? 'var(--warn)' : 'var(--err)')}">${(data.accuracy*100).toFixed(0)}%</div>
+        <div style="font-size:.72rem;color:var(--text-dim)">Overall Accuracy (LOO-CV) · ${data.sessionCount} sessions</div></div>
+      </div>`;
+
+      html += '<div style="font-size:.78rem;font-weight:600;margin-bottom:6px">Confusion Matrix (actual → predicted)</div>';
+      html += '<div style="overflow-x:auto;margin-bottom:16px"><table><tr><th></th>' + classes.map(c=>`<th>${c}</th>`).join('') + '</tr>';
+      classes.forEach(actual => {
+        html += `<tr><td class="rowhead">${actual}</td>` + classes.map(pred => {
+          const v = (data.matrix[actual] || {})[pred] || 0;
+          const diag = actual === pred;
+          return `<td style="${diag ? 'color:var(--ok);font-weight:700' : (v>0?'color:var(--err)':'')}">${v || '·'}</td>`;
+        }).join('') + '</tr>';
+      });
+      html += '</table></div>';
+
+      html += '<div style="font-size:.78rem;font-weight:600;margin-bottom:6px">Per-Class Precision / Recall / F1</div>';
+      html += '<table><tr><th style="text-align:right">Class</th><th>Precision</th><th>Recall</th><th>F1</th></tr>';
+      classes.forEach(c => {
+        const s = data.perClass[c];
+        html += `<tr><td class="rowhead">${c}</td><td>${s.precision.toFixed(2)}</td><td>${s.recall.toFixed(2)}</td><td>${s.f1.toFixed(2)}</td></tr>`;
+      });
+      html += '</table>';
+
+      if (!(_counts['none'] > 0)) {
+        html += '<div style="margin-top:12px;font-size:.72rem;color:var(--warn)">⚠ אין sessions מתויגות "none" — המודל תמיד יבחר אחד מהטריגרים, גם על תנועה רגילה/רעש. מומלץ להקליט כמה דוגמאות "none".</div>';
+      }
+      box.innerHTML = html;
+    }
+
+    async function runTrain() {
+      const btn = document.getElementById('train-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ מאמן…';
+      try {
+        const res = await fetch('/api/triggers/train', { method: 'POST' });
+        const data = await res.json();
+        renderTrainResults(data);
+      } catch (e) {
+        document.getElementById('train-results').innerHTML = `<div class="empty-state" style="color:var(--err)">שגיאת רשת: ${e}</div>`;
+      }
+      btn.disabled = false;
+      btn.textContent = '🏋 Train + Evaluate';
+    }
+
+    refreshSessions();
+  </script>
+</body>
+</html>

@@ -4,7 +4,11 @@
     { href: '/',             icon: '◎', label: 'Control',  title: 'Live Control' },
     { href: '/dashboard.html',icon: '🖥️', label: 'Dashboard', title: 'Status & Traffic' },
     { href: '/measure.html', icon: '📐', label: 'Measure',   title: 'Measurement Campaign' },
-    { href: '/onboarding.html', icon: '🧭', label: 'Guide',  title: 'Measurement Onboarding' },
+    { href: '/motion-trainer.html', icon: '🎯', label: 'Triggers', title: 'Motion Trigger Trainer' },
+    // Guide (onboarding.html, full M0-M5 calibration campaign) removed from
+    // primary nav — archived, not deleted. Reachable via a link from Measure
+    // when a full recalibration is actually needed (new Staff unit, IMU
+    // remounted, etc.), not as a persistent top-level item.
     { href: '/bank.html',    icon: '🗃️', label: 'Banks',   title: 'Bank Manager' },
     { href: '/effects.html', icon: '🎨', label: 'Effects', title: 'Effects Lab' },
   ];

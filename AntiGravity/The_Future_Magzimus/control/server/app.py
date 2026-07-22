@@ -25,6 +25,9 @@ from serial_bridge import SerialBridge
 from engine import Engine
 import bank_manager
 import effects_library
+import trigger_sessions
+import motion_features
+import motion_classifier
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 # SERIAL_PORT: אם לא הוגדר במפורש, ה-Hub מאותר אוטומטית (ראה _guess_hub_port).
@@ -42,6 +45,9 @@ DEVICE_OFFLINE_MS = 5000
 
 FX_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), '../../effects/effects.json')
 fx_store = effects_library.EffectStore(FX_LIBRARY_PATH)
+TRIGGER_SESSIONS_PATH = os.path.join(os.path.dirname(__file__), '../../triggers/sessions.json')
+TRIGGER_MODEL_PATH    = os.path.join(os.path.dirname(__file__), '../../triggers/model.json')
+trigger_session_store = trigger_sessions.TriggerSessionStore(TRIGGER_SESSIONS_PATH)
 UI_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '../ui'))
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -513,6 +519,11 @@ def effects_page():
     return send_from_directory(UI_DIR, 'effects.html')
 
 
+@app.route('/motion-trainer.html')
+def motion_trainer_page():
+    return send_from_directory(UI_DIR, 'motion-trainer.html')
+
+
 @app.route('/nav.js')
 def dashboard_nav():
     return send_from_directory(UI_DIR, 'nav.js')
@@ -541,15 +552,12 @@ def network_traffic():
 
 
 # ─── Measurement Campaign — recording control ─────────────────────────────────
-@app.route('/api/measure/start', methods=['POST'])
-def measure_start():
-    body  = request.get_json(silent=True) or {}
-    stage = str(body.get('stage', '')).strip()
-    if not stage:
-        return jsonify({'ok': False, 'error': 'stage is required'}), 400
+def _start_recording(stage: str) -> dict:
+    """Core "start a labeled JSONL recording" logic, shared by /api/measure/start
+    and /api/triggers/record/start — raises ValueError(msg) if already recording."""
     with _recording_lock:
         if _recording['active']:
-            return jsonify({'ok': False, 'error': f"already recording ({_recording['stage']})"}), 409
+            raise ValueError(f"already recording ({_recording['stage']})")
         os.makedirs(MEASUREMENTS_DIR, exist_ok=True)
         ts = time.strftime('%Y%m%d-%H%M%S')
         fname = f'{ts}_{stage}.jsonl'
@@ -558,7 +566,34 @@ def measure_start():
         fh.write(json.dumps({'type': 'session_start', 'stage': stage, 'ts': time.time() * 1000}) + '\n')
         _recording.update(active=True, stage=stage, path=path, fh=fh,
                            start_ts=time.time() * 1000, count=0)
-    return jsonify({'ok': True, 'stage': stage, 'file': fname})
+    return {'stage': stage, 'file': fname}
+
+
+def _stop_recording() -> dict:
+    """Core "stop the active recording" logic, shared by /api/measure/stop and
+    /api/triggers/record/stop — raises ValueError(msg) if nothing is recording."""
+    with _recording_lock:
+        if not _recording['active']:
+            raise ValueError('not recording')
+        _recording['fh'].write(json.dumps({'type': 'session_end', 'ts': time.time() * 1000,
+                                            'count': _recording['count']}) + '\n')
+        _recording['fh'].close()
+        result = {'stage': _recording['stage'], 'file': os.path.basename(_recording['path']),
+                   'count': _recording['count']}
+        _recording.update(active=False, stage=None, path=None, fh=None, start_ts=None, count=0)
+    return result
+
+
+@app.route('/api/measure/start', methods=['POST'])
+def measure_start():
+    body  = request.get_json(silent=True) or {}
+    stage = str(body.get('stage', '')).strip()
+    if not stage:
+        return jsonify({'ok': False, 'error': 'stage is required'}), 400
+    try:
+        return jsonify({'ok': True, **_start_recording(stage)})
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 409
 
 
 @app.route('/api/measure/mark', methods=['POST'])
@@ -575,16 +610,10 @@ def measure_mark():
 
 @app.route('/api/measure/stop', methods=['POST'])
 def measure_stop():
-    with _recording_lock:
-        if not _recording['active']:
-            return jsonify({'ok': False, 'error': 'not recording'}), 409
-        _recording['fh'].write(json.dumps({'type': 'session_end', 'ts': time.time() * 1000,
-                                            'count': _recording['count']}) + '\n')
-        _recording['fh'].close()
-        result = {'stage': _recording['stage'], 'file': os.path.basename(_recording['path']),
-                   'count': _recording['count']}
-        _recording.update(active=False, stage=None, path=None, fh=None, start_ts=None, count=0)
-    return jsonify({'ok': True, **result})
+    try:
+        return jsonify({'ok': True, **_stop_recording()})
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 409
 
 
 @app.route('/api/measure/status', methods=['GET'])
@@ -663,6 +692,111 @@ def measure_delete(name):
         return jsonify({'ok': False, 'error': 'not found'}), 404
     os.remove(path)
     return jsonify({'ok': True, 'file': name})
+
+
+def _load_session_frames(filename: str) -> list[dict]:
+    """Reads a docs/measurements/*.jsonl file and returns just the telemetry
+    frame dicts (skips session_start/session_end/marker lines) — same shape
+    consumed by motion_features.extract()."""
+    path = os.path.join(MEASUREMENTS_DIR, filename)
+    frames = []
+    with open(path) as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get('type') == 'telemetry':
+                frames.append(row['data'])
+    return frames
+
+
+# ─── Trigger training — separate calibration tool for the Bank system's 6
+# fixed triggers (fast_spin/toss/roll/catch/static_horizontal/static_vertical)
+# + an explicit "none" negative class. Reuses the exact same recording
+# machinery as /api/measure/* above — this only tags "this recording is a
+# labeled example of trigger X" and later trains motion_classifier.Classifier
+# on the tagged set. See docs/agent/DONE.md for why this exists (fast_spin/
+# roll are permanently dead in bank_manager.eval_fixed_trigger — motionType
+# is hardcoded MOTION_IDLE in firmware) and why it's scoped this narrowly
+# (no open movement vocabulary — explicit user decision).
+TRAINABLE_LABELS = tuple(bank_manager.FIXED_TRIGGERS) + ('none',)
+
+
+@app.route('/api/triggers/record/start', methods=['POST'])
+def trigger_record_start():
+    body = request.get_json(silent=True) or {}
+    trigger = str(body.get('trigger', '')).strip()
+    if trigger not in TRAINABLE_LABELS:
+        return jsonify({'ok': False, 'error': f'trigger must be one of {TRAINABLE_LABELS}'}), 400
+    try:
+        return jsonify({'ok': True, **_start_recording(trigger)})
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 409
+
+
+@app.route('/api/triggers/record/stop', methods=['POST'])
+def trigger_record_stop():
+    try:
+        result = _stop_recording()
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 409
+    session = trigger_session_store.create(result['stage'], result['file'], result['count'])
+    return jsonify({'ok': True, 'session': session})
+
+
+@app.route('/api/triggers/sessions', methods=['GET'])
+def trigger_sessions_list():
+    return jsonify({'ok': True, 'sessions': trigger_session_store.list(),
+                     'counts': trigger_session_store.counts(), 'labels': TRAINABLE_LABELS})
+
+
+@app.route('/api/triggers/sessions/<session_id>', methods=['DELETE'])
+def trigger_sessions_delete(session_id):
+    fname = trigger_session_store.delete(session_id)
+    if fname is None:
+        return jsonify({'ok': False, 'error': 'not found'}), 404
+    path = os.path.join(MEASUREMENTS_DIR, fname)
+    if os.path.isfile(path):
+        os.remove(path)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/triggers/train', methods=['POST'])
+def trigger_train():
+    sessions_meta = trigger_session_store.list()
+    if len(sessions_meta) < 3:
+        return jsonify({'ok': False, 'error': 'need at least 3 recorded sessions total to train'}), 400
+    sessions = []
+    for s in sessions_meta:
+        try:
+            frames = _load_session_frames(s['file'])
+        except OSError:
+            continue  # underlying file missing/moved — skip rather than fail the whole training run
+        if len(frames) >= 2:
+            sessions.append({'label': s['trigger'], 'frames': frames})
+    if len(sessions) < 3:
+        return jsonify({'ok': False, 'error': 'not enough valid sessions (files missing or too short)'}), 400
+
+    eval_result = motion_classifier.Evaluator.cross_validate(sessions)
+    clf = motion_classifier.Classifier()
+    clf.train(sessions)
+
+    model = {
+        'trainedAt': time.time(),
+        'sessionCounts': trigger_session_store.counts(),
+        'normParams': clf.norm_params,
+        'trainingData': clf.training_data,
+    }
+    os.makedirs(os.path.dirname(TRIGGER_MODEL_PATH), exist_ok=True)
+    tmp = TRIGGER_MODEL_PATH + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(model, f, indent=2)
+    os.replace(tmp, TRIGGER_MODEL_PATH)
+
+    return jsonify({'ok': True, 'accuracy': eval_result['accuracy'], 'matrix': eval_result['matrix'],
+                     'perClass': eval_result['perClass'], 'sessionCount': len(sessions),
+                     'counts': trigger_session_store.counts()})
 
 
 @app.route('/api/command/staff', methods=['POST'])

@@ -138,6 +138,9 @@
   <div class="page-header">
     <span class="page-title">קמפיין מדידות — Staff → Hub</span>
     <span class="page-subtitle">SmartStaff_Measurement_Campaign_v2 · תיעוד גולמי בלבד, ללא ניתוח בממשק</span>
+    <a href="/onboarding.html" target="_blank" class="btn" style="margin-right:auto;text-decoration:none">
+      🧭 קמפיין כיול מלא (M0-M5)
+    </a>
   </div>
 
   <div class="summary-row">
@@ -177,6 +180,18 @@
         <div class="sim-row">
           <button class="btn" id="sim-btn" onclick="toggleSim()">🧪 סימולציה (בדיקת ממשק בלי חומרה)</button>
         </div>
+      </div>
+
+      <div class="glass panel">
+        <div class="panel-title">כיול צירים — Baseline</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <button class="btn calib-btn" data-stage="Baseline-Vertical" data-duration="3" onclick="runCalibration(this)">📐 Baseline Vertical</button>
+          <button class="btn calib-btn" data-stage="Baseline-Horizontal" data-duration="3" onclick="runCalibration(this)">📏 Baseline Horizontal</button>
+          <button class="btn calib-btn" data-stage="Baseline-Roll" data-duration="6" onclick="runCalibration(this)">🔄 Baseline Roll</button>
+          <button class="btn calib-btn" data-stage="Baseline-Spin" data-duration="6" onclick="runCalibration(this)">🌀 Baseline Spin</button>
+        </div>
+        <div class="rec-status" id="calib-status">בחר כפתור — יש 3 שניות הכנה לפני שההקלטה מתחילה בפועל ("עכשיו!"). Vertical/Horizontal: החזק תנוחה קבועה. Roll/Spin: בצע את התנועה ברציפות עד לסיום הספירה.</div>
+        <div id="calib-results"></div>
       </div>
 
       <div class="glass panel">
@@ -327,8 +342,115 @@
       }
     }
 
+    // ─── Axis calibration — reuses the same start/stop/view endpoints as
+    // manual recording, then parses the JSONL and computes per-axis min/max/
+    // range so "which axis moved during this baseline" is readable directly
+    // from the UI instead of an ad-hoc script. ───────────────────────────────
+    let _calibResults = {};
+    let _calibBusy = false;
+    const AXES = ['accX','accY','accZ','gyroX','gyroY','gyroZ'];
+
+    function setCalibButtonsDisabled(disabled) {
+      document.querySelectorAll('.calib-btn').forEach(b => b.disabled = disabled);
+      document.getElementById('record-btn').disabled = disabled;
+    }
+
+    async function runCalibration(btn) {
+      if (_calibBusy || recording) {
+        document.getElementById('calib-status').textContent = recording
+          ? 'יש הקלטה רגילה פעילה — עצור אותה קודם' : 'כיול כבר רץ…';
+        return;
+      }
+      _calibBusy = true;
+      setCalibButtonsDisabled(true);
+      const stage = btn.dataset.stage;
+      const duration = parseInt(btn.dataset.duration);
+      const prep = parseInt(btn.dataset.prep || '3');
+
+      // Pre-roll: gives time to get into position / grip the staff before
+      // recording actually starts — clicking doesn't mean "move right now".
+      for (let s = prep; s > 0; s--) {
+        document.getElementById('calib-status').innerHTML = `<b>${stage}</b> — התכונן… מתחיל בעוד ${s}s`;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      document.getElementById('calib-status').innerHTML = `<b>${stage}</b> — 🔴 עכשיו!`;
+
+      const startRes = await fetch('/api/measure/start', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ stage })
+      });
+      const startData = await startRes.json();
+      if (!startData.ok) {
+        document.getElementById('calib-status').textContent = 'שגיאה: ' + startData.error;
+        _calibBusy = false; setCalibButtonsDisabled(false);
+        return;
+      }
+
+      for (let s = duration; s > 0; s--) {
+        document.getElementById('calib-status').innerHTML = `<b>${stage}</b> — מקליט… ${s}s`;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      document.getElementById('calib-status').textContent = 'מעבד…';
+
+      const stopRes = await fetch('/api/measure/stop', { method: 'POST' });
+      const stopData = await stopRes.json();
+      if (!stopData.ok) {
+        document.getElementById('calib-status').textContent = 'שגיאה בעצירה: ' + stopData.error;
+        _calibBusy = false; setCalibButtonsDisabled(false);
+        return;
+      }
+
+      const viewRes = await fetch(`/api/measure/view/${encodeURIComponent(stopData.file)}`);
+      const text = await viewRes.text();
+      const rows = text.trim().split('\n')
+        .map(l => { try { return JSON.parse(l); } catch (e) { return null; } })
+        .filter(r => r && r.type === 'telemetry');
+
+      const summary = {};
+      AXES.forEach(ax => {
+        const vals = rows.map(r => r.data[ax]).filter(v => typeof v === 'number');
+        if (!vals.length) { summary[ax] = null; return; }
+        const min = Math.min(...vals), max = Math.max(...vals);
+        summary[ax] = { min, max, range: max - min, mean: vals.reduce((a,b)=>a+b,0)/vals.length };
+      });
+      _calibResults[stage] = { summary, count: rows.length, file: stopData.file };
+
+      renderCalibResults();
+      document.getElementById('calib-status').textContent = `${stage} הושלם — ${rows.length} פריימים (${stopData.file})`;
+      _calibBusy = false;
+      setCalibButtonsDisabled(false);
+    }
+
+    function renderCalibResults() {
+      const stages = Object.keys(_calibResults);
+      const box = document.getElementById('calib-results');
+      if (!stages.length) { box.innerHTML = ''; return; }
+      let html = '<table style="width:100%;font-size:.72rem;border-collapse:collapse;margin-top:6px">';
+      html += '<tr><th style="text-align:right;color:var(--text-dim);font-weight:600">ציר</th>' +
+        stages.map(s => `<th style="color:var(--text-dim);font-weight:600">${s.replace('Baseline-','')}</th>`).join('') + '</tr>';
+      AXES.forEach(ax => {
+        let maxRange = -1, maxStage = null;
+        stages.forEach(s => {
+          const d = _calibResults[s].summary[ax];
+          if (d && d.range > maxRange) { maxRange = d.range; maxStage = s; }
+        });
+        html += `<tr><td style="color:var(--text-dim);padding:3px 0">${ax}</td>`;
+        stages.forEach(s => {
+          const d = _calibResults[s].summary[ax];
+          const val = d ? Math.round(d.range) : '—';
+          const dominant = (s === maxStage && maxRange > 0);
+          html += `<td style="text-align:center;padding:3px 4px;${dominant ? 'font-weight:700;color:var(--accent)' : ''}">${val}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</table>';
+      html += '<div style="font-size:.65rem;color:var(--text-dim);margin-top:6px">הערך = טווח (max-min) בזמן ההקלטה. הציר המודגש בכל שורה = הציר עם התנועה הכי גדולה באותה תנוחה/תנועה.</div>';
+      box.innerHTML = html;
+    }
+
     // ─── Recording control (server-side raw JSONL) ───
     async function toggleRecord() {
+      if (_calibBusy) { alert('כיול צירים פעיל כרגע — חכה שיסתיים'); return; }
       if (!recording) {
         const stage = document.getElementById('stage-input').value.trim();
         if (!stage) { alert('צריך שם שלב'); return; }
@@ -355,8 +477,8 @@
         document.getElementById('sum-recording').textContent = 'כבוי';
         document.getElementById('rec-chip').style.color = 'var(--text-dim)';
         document.getElementById('rec-status').textContent = 'לא מקליט';
-        logLine(`⏹ stopped: ${data.file} (${data.count} frames)`);
-        refreshFiles();
+        if (data.ok) { logLine(`⏹ stopped: ${data.file} (${data.count} frames)`); refreshFiles(); }
+        else { logLine(`שגיאה בעצירה: ${data.error}`); }
       }
     }
 
@@ -438,7 +560,11 @@ function escapeHtml(s) {
         const data = await res.json();
         document.getElementById('sum-count').textContent = data.count || 0;
         if (data.active && !recording) {
-          // another client is recording — reflect state
+          // another client (or the calibration feature) started a recording —
+          // reflect it, but only for MANUAL recordings, not calibration runs
+          // (those manage their own status line and shouldn't fight over the
+          // record-btn UI).
+          if (_calibBusy) return;
           recording = true; recStartTs = data.startTs;
           document.getElementById('record-btn').className = 'record-btn active';
           document.getElementById('record-btn').textContent = '⏹ עצור הקלטה';
@@ -446,6 +572,17 @@ function escapeHtml(s) {
           document.getElementById('sum-recording').textContent = 'פעיל';
           document.getElementById('rec-chip').style.color = 'var(--err)';
           document.getElementById('stage-input').value = data.stage;
+        } else if (!data.active && recording) {
+          // recording ended (by us, another client, or a calibration run) —
+          // revert the manual button/UI back to idle. This was missing before:
+          // the button could get stuck showing "active" forever.
+          recording = false; recStartTs = null;
+          document.getElementById('record-btn').className = 'record-btn idle';
+          document.getElementById('record-btn').textContent = '🔴 התחל הקלטה';
+          document.getElementById('mark-btn').disabled = true;
+          document.getElementById('sum-recording').textContent = 'כבוי';
+          document.getElementById('rec-chip').style.color = 'var(--text-dim)';
+          document.getElementById('rec-status').textContent = 'לא מקליט';
         }
       } catch (_) {}
     }

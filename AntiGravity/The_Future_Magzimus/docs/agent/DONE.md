@@ -1,5 +1,41 @@
 # DONE — לוג משימות שבוצעו
 
+## [2026-07-22] Motion Trigger Trainer — כלי כיול נפרד לזיהוי טריגרים מבוסס KNN (פורט מ-Smart Staff)
+
+### רקע
+`bank_manager.eval_fixed_trigger()`: `fast_spin`/`roll` תלויים ב-`motionType`, ש-`firmware/staff/src/main.cpp:225` קובע קשיח ל-`MOTION_IDLE` תמיד — קוד מת מובנה, אומת חי (45 שניות תנועה אמיתית, 0 ירי). המשתמש ביקש **במפורש ובמודע** לעקוף את כלל CLAUDE.md האוסר העתקת מערכת ML מהפרויקט הישן (Smart Staff) — אישור חד-משמעי לסטייה חד-פעמית מההוראה, לצורך זה בלבד.
+
+**קריאה בפרויקט הישן** (`/Users/user/AntiGravity/Smart_Staff/`) חשפה שהמסמך `docs/ML_Model_Analysis.md` שם **לא מדויק/מיושן** — הבדיקה הישירה של הקוד בפועל (`Ver_Beta/BT_setup/dashboard/motion_model.js`) הראתה שהאימון וה-inference **אמיתיים**, לא מוקים כמתועד. אלגוריתם: KNN (k=3, מרחק אוקלידי, נורמליזציית Z-Score, הצבעה משוקללת 1/d²), Evaluator עם LOO-CV. שתי גרסאות feature-extraction קיימות בפרויקט הישן — Ver_Beta קורס ל-2 ערוצי magnitude (16-dim), עותק archive ישן יותר שומר על 6 צירים גולמיים (48-dim). **נבחר ה-48-dim** — קריטי כי בדיוק הצירים (לא רק העוצמה) הם מה שמבדיל בין roll/spin/swing, בדיוק כמו שהסבב הקודם הראה אמפירית (gyroY = סיבוב סביב אורך המקל).
+
+### היקף שנבנה (בכוונה מצומצם מהמקור)
+המשתמש תיקן במפורש: **לא** ספריית תנועות פתוחה כמו במקור (12 פריסטים ב-3 קטגוריות) — רק תיוג מוגבל ל-6 הטריגרים הקבועים של ה-Bank + מחלקת "none" (רקע/לא-טריגר, מומלצת כדי שהמסווג ידע לדחות רעש). מטרה: לפחות 20 דוגמאות לכל טריגר. **המודל נפרד לגמרי** — לא מחובר עדיין ל-`engine.py`/`eval_fixed_trigger` בסבב הזה (נדחה בכוונה לסבב הבא, אחרי שהמודל יוכח כאמין).
+
+### קבצים חדשים
+- `control/engine/motion_features.py` — `extract(frames)`, 48-dim (6 צירים × 8 סטטיסטיקות: mean/std/max-abs/energy/zero-crossings/dominant-freq via brute-force DFT/skewness/IQR), פורט 1:1 מה-JS.
+- `control/engine/motion_classifier.py` — `Classifier` (train/predict, KNN משוקלל) + `Evaluator` (LOO-CV → confusion matrix → per-class precision/recall/F1), פורט 1:1.
+- `control/engine/trigger_sessions.py` — `TriggerSessionStore`, אותו דפוס atomic-JSON כמו `BankStore`/`EffectStore`, לא שומר את הנתונים עצמם — רק מתייג קבצי JSONL קיימים.
+- `control/ui/motion-trainer.html` — עמוד חדש: 7 כרטיסי תווית (6 טריגרים + none) עם ספירת sessions ("X/20"), כפתור הקלטה עם countdown הכנה+הקלטה (אותו דפוס בדיוק כמו `runCalibration()` שנבנה קודם ב-measure.html), רשימת sessions למחיקה, וכפתור Train+Evaluate עם טבלת confusion matrix + per-class F1.
+- `triggers/sessions.json`, `triggers/model.json` — נוצרים אוטומטית.
+
+### שינויים בקבצים קיימים
+- `control/server/app.py` — `/api/measure/start`+`/api/measure/stop` פוצלו ל-helper functions פנימיים (`_start_recording`/`_stop_recording`) כדי שגם `/api/triggers/record/*` יוכלו לעשות בדיוק אותה פעולה בלי שכפול קוד; אותה התנהגות בדיוק נשמרה ל-`/api/measure/*` הקיימים (אימות: אותה הודעת שגיאה/status code). נוספו `/api/triggers/record/{start,stop}`, `/api/triggers/sessions` (GET/DELETE), `/api/triggers/train`. `TRAINABLE_LABELS` נגזר מ-`bank_manager.FIXED_TRIGGERS` ולא משוכפל, כדי שאוצר המילים לא יוכל לסטות מה-Bank.
+- `control/ui/nav.js` — פריט ניווט חדש "Triggers" (🎯).
+
+### נבדק — חי, קצה-לקצה, כולל חומרה מחוברת
+- **Phase 1 (offline)**: סקריפט חד-פעמי טען JSONL אמיתי מ-`docs/measurements/` דרך `extract()` — 48 ערכים סופיים. בדיקה סינתטית עם 3 מחלקות מופרדות היטב (roll/spin/none) → LOO-CV **100% accuracy**, F1=1.0 לכולן — מוכיח שהאלגוריתם (לא רק "לא קורס") נכון.
+- **Phase 2 (backend)**: מחזור מלא דרך ה-API האמיתי (לא סימולציה) — הקלטת roll אמיתית מול Master מחובר, שתי הקלטות "none", train, ואימות ש-`triggers/sessions.json`/`triggers/model.json` נכתבים נכון לדיסק. תוצאת אימון 0% (צפוי — כל הדגימות היו "לא זזתי בפועל", לא באג).
+- **Phase 3 (UI)**: חי בדפדפן — `pio`-free, עמוד חדש, לחיצה על Record על "Roll" → countdown הכנה (2s) → הקלטה (4s) → "✓ Roll נשמר — 160 פריימים" → כרטיס מתעדכן ל-1/20 → מופיע ברשימה. כל ה-sessions הבדיקתיים נמחקו בסוף (`DELETE /api/triggers/sessions/<id>`) — לוח נקי למשתמש להתחיל איסוף אמיתי.
+- **לקח חוזר מהסבב הקודם**: שכחתי לרסטארט את השרת פעם אחת אחרי הוספת ה-route של הדף החדש (`/motion-trainer.html` → 404) — תוקן מיד ברסטארט נוסף.
+
+### לא בוצע (בכוונה, ראה תוכנית ב-`/Users/user/.claude/plans/quirky-juggling-fairy.md`)
+חיבור המודל המאומן ל-`engine.py`'s live telemetry + ל-`eval_fixed_trigger` (rolling window, energy/confidence/cooldown gates לפי `MotionModel.Inference` המקורי, כיול הקבועים האלה למכשור הזה — לא להעתיק את המספרים הישנים 12/80 בלי בדיקה). גם תמיכת Poi/Dragon Staff עתידית — התשתית (`_ROLE_BY_TYPE` פר-סוג-פאקטה) כבר קיימת, לא נדרש שינוי עכשיו.
+
+### קבצים
+- `control/engine/motion_features.py`, `motion_classifier.py`, `trigger_sessions.py` (חדשים)
+- `control/ui/motion-trainer.html` (חדש), `control/ui/nav.js`
+- `control/server/app.py`
+- `triggers/sessions.json`, `triggers/model.json` (נוצרים אוטומטית, לא ב-git עדיין)
+
 ## [2026-07-22] תיקון קריטי כפול: Test on Hardware לא הגיע בכלל ל-Staff (שרת תקוע + Hub עם struct ישן)
 
 ### הבאג

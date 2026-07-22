@@ -1,3 +1,46 @@
 {
-  "effects": {}
+  "effects": {
+    "aa77dc81": {
+      "name": "ירוק סטטי",
+      "deviceType": "staff",
+      "templateId": 0,
+      "paletteId": 0,
+      "speed": 128,
+      "intensity": 255,
+      "param1": 20,
+      "param2": 255,
+      "reactiveSource": 0,
+      "reactiveParam": 0,
+      "colorMode": 1,
+      "pr": 0,
+      "pg": 255,
+      "pb": 0,
+      "sr": 0,
+      "sg": 255,
+      "sb": 0,
+      "createdAt": 1784731118.182763,
+      "updatedAt": 1784731136.426063
+    },
+    "c0199320": {
+      "name": "אדום סטטי",
+      "deviceType": "staff",
+      "templateId": 0,
+      "paletteId": 0,
+      "speed": 128,
+      "intensity": 255,
+      "param1": 20,
+      "param2": 255,
+      "reactiveSource": 0,
+      "reactiveParam": 0,
+      "colorMode": 1,
+      "pr": 255,
+      "pg": 0,
+      "pb": 0,
+      "sr": 255,
+      "sg": 0,
+      "sb": 0,
+      "createdAt": 1784731157.583019,
+      "updatedAt": 1784731157.583019
+    }
+  }
 }
