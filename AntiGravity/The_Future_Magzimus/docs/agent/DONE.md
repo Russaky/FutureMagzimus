@@ -1,5 +1,37 @@
 # DONE — לוג משימות שבוצעו
 
+## [2026-07-22] תיקון קריטי כפול: Test on Hardware לא הגיע בכלל ל-Staff (שרת תקוע + Hub עם struct ישן)
+
+### הבאג
+המשתמש דיווח: "Test on hardware עדיין לא מגיע ל-staff אצלנו" — אחרי כל תיקוני ה-UI בסבב הקודם. בדיקה חיה חשפה **שני** גורמי שורש נפרדים, שניהם לבדם מספיקים לחסום את זה לגמרי:
+
+**גורם 1 — שרת Flask תקוע על קוד ישן.** `ps` הראה שהתהליך (PID 1566) רץ **מאז 08:08** בבוקר, בעוד `app.py`/`protocol.py` נערכו לאחרונה ב-09:52/11:09 — השרת מעולם לא הופעל מחדש אחרי כל השינויים בסבב הקודם (כולל הוספת colorMode/pr/pg/pb/sr/sg/sb ל-`pack_effect_command`). כל בדיקה קודמת בסבב הזה שהראתה "✓ נשלח לחומרה" הייתה למעשה שולחת פורמט **ישן** (12 בייט, בלי custom color) — ה-HTTP הצליח, אבל זה לא מה שנשלח בפועל. **תוקן**: הרוג התהליך הישן (`kill 1566 1564`), הופעל מחדש (`python3 control/server/app.py &`), Hub התחבר אוטומטית.
+
+**גורם 2 — Hub firmware עם `EffectCommand` בגודל ישן (חמור יותר).** גם אחרי הפעלת השרת מחדש, האפקט עדיין לא הגיע. `firmware/hub/include/Protocol.h` מחזיק **עותק משוכפל** (mirror) של ה-struct `EffectCommand` — ומעולם לא עודכן כשה-struct גדל ל-19 בייט ב-`firmware/staff/include/Protocol.h` (סבב effects-lab-unify-color-003). `firmware/hub/src/main.cpp:24`: `if (len == sizeof(EffectCommand)) EspNow::send(payload, len);` — ה-Hub בדק את אורך החבילה הנכנסת מול ה-`sizeof` **הישן שלו** (12 בייט), הפקודה החדשה (19 בייט) נכשלה בבדיקה ונזרקה בשקט — **אף פעם לא הגיעה ל-ESP-NOW בכלל**, לא משנה מה השרת שלח.
+
+**תוקן**: `firmware/hub/include/Protocol.h` — עודכן `EffectCommand` ל-19 בייט (זהה בדיוק ל-Staff), עם comment מפורש שמזהיר שה-struct הזה **חייב** להישאר מסונכרן בייט-לבייט. נצרב מחדש (`pio run -e hub -t upload`) — דרש `POST /api/hub/disconnect` לפני (לשחרר את הפורט מהשרת) ו-`POST /api/hub/connect` אחרי.
+
+### אימות — הוכחה חד-משמעית, לא רק "אין שגיאה"
+נוסף Serial.print זמני ב-`main.cpp` שמדפיס בדיוק מה ה-Master קיבל (`fxCmd.templateId/paletteId/colorMode/pr/pg/pb/sr/sg/sb`), נצרב, נשלחה פקודת טסט אמיתית (Gradient, custom color, primary=אדום, secondary=כחול) תוך כדי האזנה לסריאל בו-זמנית:
+```
+[EFFECT RX] template=1 palette=0 colorMode=1 pr=255,0,0 sr=0,0,255
+```
+תואם בדיוק למה שנשלח — **הוכחה שהחומרה בפועל קיבלה ופענחה נכון**, לא רק ש-HTTP החזיר 200. ה-print הוסר אחרי האימות, נצרב build נקי סופי.
+
+### נבדק אחרי התיקון המלא
+- `pio run -e hub` נקי, נצרב, Hub מגיב ל-`/api/discover` (שני ה-staff עדיין רואים אותו).
+- `pio run -e staff` (הסרת debug print) נקי, נצרב ל-Master, boot נקי (`AD44`, IMU תקין).
+- Test on Hardware דרך ה-UI האמיתי (לא רק curl): `✓ נשלח לחומרה` + אומת בסריאל שהמאסטר קיבל נכון.
+- Slave (`028C`) לא נגע בו — הקשר Master↔Slave (EffectSyncPacket) לא עובר דרך ה-Hub בכלל, לא הושפע מהבאג הזה.
+
+### לקח לתיעוד
+כל שינוי ל-struct משותף ב-`firmware/staff/include/Protocol.h` **חייב** להיבדק גם מול `firmware/hub/include/Protocol.h` אם ה-Hub מחזיק עותק משוכפל (mirror) — יש כרגע רק `EffectCommand` במצב הזה (לא `EffectSyncPacket`, זה Master↔Slave ישיר). כמו כן: שרת Flask מקומי **לא** מתרענן לבד — כל שינוי ב-`app.py`/`protocol.py` דורש restart ידני של התהליך, אין מנגנון auto-reload.
+
+### קבצים
+- `firmware/hub/include/Protocol.h` (עודכן — 19 בייט)
+- `firmware/staff/src/main.cpp` (debug print זמני, הוסר)
+- שרת Flask הופעל מחדש (לא קובץ קוד)
+
 ## [2026-07-22] Effects Lab v2: עיצוב מחדש (viewport-fit, faders אנכיים, hue-slider+hex), IMU-Reactive per-parameter, checkpoint git
 
 ### רקע וגיבוי

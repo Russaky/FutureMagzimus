@@ -90,11 +90,15 @@ struct __attribute__((packed)) DMXCommand {
     uint8_t  w, r, g, b; // written at targetAddr, +1, +2, +3
 };
 
-// Hub → Staff (12 bytes) — generic parametrized FastLED effect. Kept as a
+// Hub → Staff (19 bytes) — generic parametrized FastLED effect. Kept as a
 // separate struct/msgType from HubCommand (not a mutation of it) — see the
 // 2026-06-08 postmortem on HubCommand/SyncPacket 8-byte collision in DONE.md.
 // Mirrors firmware/staff/include/Protocol.h's EffectCommand exactly; the Hub
-// only forwards the raw bytes, it never interprets them.
+// only forwards the raw bytes, it never interprets them. IMPORTANT: this
+// struct must be kept byte-for-byte in sync with the Staff's copy — the Hub
+// validates incoming length against sizeof(EffectCommand) before forwarding
+// (see main.cpp MSG_CMD_EFFECT_STAFF), so a stale copy here silently drops
+// every effect command instead of forwarding it.
 struct __attribute__((packed)) EffectCommand {
     uint8_t  groupId;
     uint8_t  msgType;     // = 0x52 (MSG_CMD_EFFECT at the ESP-NOW layer)
@@ -107,6 +111,9 @@ struct __attribute__((packed)) EffectCommand {
     uint8_t  param2;
     uint8_t  reactiveSource;  // ReactiveSource (see firmware/staff/include/Protocol.h)
     uint8_t  reactiveParam;   // ReactiveParam
+    uint8_t  colorMode;       // EffectColorMode
+    uint8_t  pr, pg, pb;      // primary color (custom mode)
+    uint8_t  sr, sg, sb;      // secondary color (custom mode)
 };
 
 // Staff → Hub (6 bytes) — staff entered/exited autonomous mode

@@ -1644,5 +1644,25 @@
     "dependencies": [
       "effects-lab-unify-color-003"
     ]
+  },
+  {
+    "id": "fix-hub-stale-effectcommand-005",
+    "title": "תיקון קריטי: Test on Hardware לא הגיע ל-Staff (שרת תקוע על קוד ישן + Hub עם EffectCommand struct ישן)",
+    "description": "שני גורמי שורש עצמאיים: (1) תהליך Flask (PID 1566) רץ מאז 08:08, לא הופעל מחדש אחרי שינויי app.py/protocol.py — כל בדיקה קודמת שלחה פורמט ישן בפועל. תוקן ע\"י restart. (2) firmware/hub/include/Protocol.h מחזיק mirror ישן (12 בייט) של EffectCommand שלא עודכן כש-firmware/staff גדל ל-19 בייט — hub/src/main.cpp בודק len==sizeof(EffectCommand) לפני forward, אז כל פקודת אפקט חדשה נזרקה בשקט לפני שהגיעה ל-ESP-NOW. תוקן ע\"י עדכון ה-mirror + צריבה מחדש ל-Hub.",
+    "priority": 1,
+    "technical_specs": {
+      "required_libraries": [],
+      "design_patterns": [
+        "אימות end-to-end אמיתי (Serial.print זמני על ה-Master, הוסר אחרי) — לא רק 'HTTP 200 = הצליח'"
+      ],
+      "constraints": [
+        "כל שינוי עתידי ל-EffectCommand ב-firmware/staff/include/Protocol.h חייב להתעדכן גם ב-firmware/hub/include/Protocol.h (mirror) — אחרת ה-Hub שוב יזרוק פקודות בשקט",
+        "שרת Flask מקומי אין לו auto-reload — שינוי ב-app.py/protocol.py דורש restart ידני של התהליך"
+      ]
+    },
+    "status": "DONE",
+    "dependencies": [
+      "effects-lab-unify-color-003"
+    ]
   }
 ]
